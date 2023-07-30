@@ -73,6 +73,8 @@ add_library(NorthstarDLL SHARED
             "mods/compiled/modkeyvalues.cpp"
             "mods/compiled/modpdef.cpp"
             "mods/compiled/modscriptsrson.cpp"
+			"mods/compiled/ns_persistence.cpp"
+			"mods/compiled/ns_persistence.h"
             "mods/modmanager.cpp"
             "mods/modmanager.h"
             "plugins/plugin_abi.h"
@@ -143,7 +145,7 @@ add_library(NorthstarDLL SHARED
             "dllmain.cpp"
             "dllmain.h"
             "ns_version.h"
-)
+ "mods/compiled/ns_persistence.h")
 
 target_link_libraries(NorthstarDLL PRIVATE
                       ${CMAKE_SOURCE_DIR}/include/MinHook.x64.lib
