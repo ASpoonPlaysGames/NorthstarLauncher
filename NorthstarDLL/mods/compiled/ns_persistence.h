@@ -244,6 +244,7 @@ private:
 
 	void HandleVarArray(std::string context, std::string prefix, PersistentVarDef& def);
 	void HandleStructChildren(std::string context, std::string prefix, PersistentVarDef& def);
+	void AddVar(std::string context, std::string type, std::string identifier);
 	//void AddVar(std::string type, std::string identifier);
 
 	static constexpr const char* m_whitespaceChars = " \n\r\t\f\v";

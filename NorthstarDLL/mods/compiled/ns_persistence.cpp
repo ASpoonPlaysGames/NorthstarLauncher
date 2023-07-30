@@ -684,7 +684,7 @@ void NSPersistenceDefinitionManager::HandleVarArray(std::string context, std::st
 		{
 			for (auto& it : m_enumDefs[def.arraySize])
 			{
-				HandleStructChildren(context, std::format("{}[{}]", def.identifier, it.value), def);
+				HandleStructChildren(context, std::format("{}[{}]", identifier, it.value), def);
 			}
 		}
 		else
@@ -692,15 +692,45 @@ void NSPersistenceDefinitionManager::HandleVarArray(std::string context, std::st
 			int size = std::atoi(def.arraySize.c_str());
 			for (int i = 0; i < size; ++i)
 			{
-				HandleStructChildren(context, std::format("{}[{}]",  def.identifier, i), def);
+				HandleStructChildren(context, std::format("{}[{}]", identifier, i), def);
 			}
 		}
+	}
+	else
+	{
+		HandleStructChildren(context, identifier, def);
 	}
 }
 
 void NSPersistenceDefinitionManager::HandleStructChildren(std::string context, std::string prefix, PersistentVarDef& def)
 {
-	spdlog::info("({}) Adding var children: {} {} {} Prefix: {}", context, def.type, def.identifier, def.arraySize, prefix);
+	//spdlog::info("({}) Adding var children: {} {} {} Prefix: {}", context, def.type, def.identifier, def.arraySize, prefix);
+	if (!StructExists(context, def.type))
+	{
+		AddVar(context, def.type, prefix);
+		return;
+	}
+
+	PersistentStructDef* structDef = nullptr; 
+	for (auto& it : m_contexts[context].structDefs)
+	{
+		if (it.name == def.type)
+		{
+			structDef = &it;
+			break;
+		}
+	}
+
+	for (auto& it : structDef->vars)
+	{
+		HandleVarArray(context, prefix, it);
+	}
+	
+}
+
+void NSPersistenceDefinitionManager::AddVar(std::string context, std::string type, std::string identifier)
+{
+	spdlog::info("{} {} ({}) ", type, identifier, context);
 }
 
 void ConCommand_load_pdiff(const CCommand& args)
@@ -708,7 +738,7 @@ void ConCommand_load_pdiff(const CCommand& args)
 	spdlog::info("Loading pdiffs from files...");
 	g_persistenceDefinitionManager->LoadPdiff("C:\\Users\\Jack\\Desktop\\Persistence Stuff\\Version 1\\cool.pdiff", "Test.Pdiff");
 	g_persistenceDefinitionManager->LoadPdiff("C:\\Users\\Jack\\Desktop\\Persistence Stuff\\Version 1\\awesome.pdiff", "Second.Pdiff");
-	g_persistenceDefinitionManager->PrintPdiffs();
+	//g_persistenceDefinitionManager->PrintPdiffs();
 	g_persistenceDefinitionManager->SetupVars();
 }
 
