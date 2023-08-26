@@ -1,20 +1,20 @@
 # loader_wsock32_proxy
 
+find_package(minhook REQUIRED)
+
 add_library(loader_wsock32_proxy SHARED
             "dllmain.cpp"
             "loader.cpp"
             "loader.h"
-            "pch.cpp"
-            "pch.h"
             "wsock32.asm"
             "wsock32.def"
 )
 
 target_link_libraries(loader_wsock32_proxy PRIVATE
-                      ${CMAKE_CURRENT_SOURCE_DIR}/include/MinHook.x64.lib
+                      minhook
                       mswsock.lib
                       ws2_32.lib
-                      Shlwapi.lib
+                      ShLwApi.lib
                       imagehlp.lib
                       dbghelp.lib
                       kernel32.lib
@@ -29,10 +29,6 @@ target_link_libraries(loader_wsock32_proxy PRIVATE
                       uuid.lib
                       odbc32.lib
                       odbccp32.lib
-)
-
-target_include_directories(loader_wsock32_proxy PRIVATE
-                           include
 )
 
 target_precompile_headers(loader_wsock32_proxy PRIVATE pch.h)
