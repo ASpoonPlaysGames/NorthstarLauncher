@@ -170,6 +170,7 @@ target_link_libraries(NorthstarDLL PRIVATE
 target_precompile_headers(NorthstarDLL PRIVATE pch.h)
 
 target_compile_definitions(NorthstarDLL PRIVATE
+                           NORTHSTAR
                            UNICODE
                            _UNICODE
                            CURL_STATICLIB

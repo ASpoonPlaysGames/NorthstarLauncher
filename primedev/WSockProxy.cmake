@@ -34,6 +34,7 @@ target_link_libraries(loader_wsock32_proxy PRIVATE
 target_precompile_headers(loader_wsock32_proxy PRIVATE wsockproxy/pch.h)
 
 target_compile_definitions(loader_wsock32_proxy PRIVATE
+                           WSOCKPROXY
                            UNICODE
                            _UNICODE
 )
