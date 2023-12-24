@@ -6,7 +6,7 @@ add_executable(NorthstarLauncher
 )
 
 target_compile_definitions(NorthstarLauncher PRIVATE
-                           LAUNCHER
+                           NSLAUNCHER
                            UNICODE
                            _UNICODE
 )
