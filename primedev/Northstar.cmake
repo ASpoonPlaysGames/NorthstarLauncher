@@ -47,8 +47,6 @@ add_library(
     "core/macros.h"
     "core/memalloc.cpp"
     "core/memalloc.h"
-    "core/memory.cpp"
-    "core/memory.h"
     "core/sourceinterface.cpp"
     "core/sourceinterface.h"
     "core/structs.h"
@@ -159,6 +157,7 @@ target_link_libraries(
     PRIVATE minhook
             libcurl
             minizip
+            silver-bun
             WS2_32.lib
             Crypt32.lib
             Cryptui.lib
@@ -188,3 +187,4 @@ set_target_properties(
                OUTPUT_NAME Northstar
                LINK_FLAGS "/MANIFEST:NO /DEBUG"
     )
+

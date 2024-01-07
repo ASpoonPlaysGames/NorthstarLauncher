@@ -60,7 +60,7 @@ int GetMaxPlayers()
 	return 32;
 }
 
-template <class T> void ChangeOffset(CMemoryAddress addr, unsigned int offset)
+template <class T> void ChangeOffset(CMemory addr, unsigned int offset)
 {
 	addr.Patch((BYTE*)&offset, sizeof(T));
 }
