@@ -70,6 +70,25 @@ struct SQFuncRegistration
 	}
 };
 
+struct SQClassRegistraition {
+	char *className;
+	char *className2;
+	char *classDescription;
+	SQClassRegistraition *parent;
+	SQFuncRegistration *functions;
+	__int64 qword_28;
+	__int64 qword_30;
+	int functions_size;
+	char gap_3C[4];
+	SQFuncRegistration *functions2;
+	__int64 qword_48;
+	__int64 qword_50;
+	int functions2_size;
+	char gap_5C[4];
+	__int64 qword_60;
+	SQClassRegistraition *next;
+};
+
 enum class ScriptContext : int
 {
 	INVALID = -1,
@@ -180,7 +199,7 @@ public:
 #pragma region TypeDefs
 
 // core sqvm funcs
-typedef int64_t (*RegisterSquirrelFuncType)(CSquirrelVM* sqvm, SQFuncRegistration* funcReg, char unknown);
+typedef int64_t (*RegisterSquirrelFuncType)(CSquirrelVM* sqvm, SQFuncRegistration* funcReg, SQClassRegistraition* classReg, char unknown, char unknown2);
 typedef void (*sq_defconstType)(CSquirrelVM* sqvm, const SQChar* name, int value);
 
 typedef SQRESULT (*sq_compilebufferType)(

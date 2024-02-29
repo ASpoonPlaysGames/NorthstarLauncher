@@ -169,7 +169,7 @@ template <ScriptContext context> void SquirrelManager<context>::VMCreated(CSquir
 	for (SQFuncRegistration* funcReg : m_funcRegistrations)
 	{
 		spdlog::info("Registering {} function {}", GetContextName(context), funcReg->squirrelFuncName);
-		RegisterSquirrelFunc(m_pSQVM, funcReg, 1);
+		RegisterSquirrelFunc(m_pSQVM, funcReg, 0, 1, 0);
 	}
 
 	for (auto& pair : g_pModManager->m_DependencyConstants)
@@ -451,30 +451,37 @@ void __fastcall ScriptCompileErrorHook(HSquirrelVM* sqvm, const char* error, con
 	// dont call the original function since it kills game lol
 }
 
-template <ScriptContext context> int64_t (*RegisterSquirrelFunction)(CSquirrelVM* sqvm, SQFuncRegistration* funcReg, char unknown);
-template <ScriptContext context>
-int64_t __fastcall RegisterSquirrelFunctionHook(CSquirrelVM* sqvm, SQFuncRegistration* funcReg, char unknown)
+template <ScriptContext context> int64_t (*RegisterSquirrelFunction)(
+	CSquirrelVM* sqvm, SQFuncRegistration* funcReg, SQClassRegistraition* classInit, char unknown, char unknown2);
+template <ScriptContext context> int64_t __fastcall RegisterSquirrelFunctionHook(
+	CSquirrelVM* sqvm, SQFuncRegistration* funcReg, SQClassRegistraition* classInit, char unknown, char unknown2)
 {
+	std::string funcName = funcReg->squirrelFuncName;
+	if (classInit)
+		funcName = std::string(classInit->className) + "." + funcName;
 	if (IsUIVM(context, sqvm->sqvm))
 	{
-		if (g_pSquirrel<ScriptContext::UI>->m_funcOverrides.count(funcReg->squirrelFuncName))
+
+		if (g_pSquirrel<ScriptContext::UI>->m_funcOverrides.find(funcName) != g_pSquirrel<ScriptContext::UI>->m_funcOverrides.end())
 		{
-			g_pSquirrel<ScriptContext::UI>->m_funcOriginals[funcReg->squirrelFuncName] = funcReg->funcPtr;
-			funcReg->funcPtr = g_pSquirrel<ScriptContext::UI>->m_funcOverrides[funcReg->squirrelFuncName];
-			spdlog::info("Replacing {} in UI", std::string(funcReg->squirrelFuncName));
+			if (g_pSquirrel<ScriptContext::UI>->m_funcOriginals.find(funcName) == g_pSquirrel<ScriptContext::UI>->m_funcOriginals.end())
+				g_pSquirrel<ScriptContext::UI>->m_funcOriginals[funcName] = funcReg->funcPtr;
+			funcReg->funcPtr = g_pSquirrel<ScriptContext::UI>->m_funcOverrides[funcName];
+			spdlog::info("Replacing {} in UI", funcName);
 		}
 
-		return g_pSquirrel<ScriptContext::UI>->RegisterSquirrelFunc(sqvm, funcReg, unknown);
+		return g_pSquirrel<ScriptContext::UI>->RegisterSquirrelFunc(sqvm, funcReg, classInit, unknown, unknown2);
 	}
-
-	if (g_pSquirrel<context>->m_funcOverrides.find(funcReg->squirrelFuncName) != g_pSquirrel<context>->m_funcOverrides.end())
+	std::map<std::string, SQFunction>& overrides = g_pSquirrel<context>->m_funcOverrides;
+	if (g_pSquirrel<context>->m_funcOverrides.find(funcName) != g_pSquirrel<context>->m_funcOverrides.end())
 	{
-		g_pSquirrel<context>->m_funcOriginals[funcReg->squirrelFuncName] = funcReg->funcPtr;
-		funcReg->funcPtr = g_pSquirrel<context>->m_funcOverrides[funcReg->squirrelFuncName];
-		spdlog::info("Replacing {} in Client", std::string(funcReg->squirrelFuncName));
+		if (g_pSquirrel<context>->m_funcOriginals.find(funcName) == g_pSquirrel<context>->m_funcOriginals.end())
+			g_pSquirrel<context>->m_funcOriginals[funcName] = funcReg->funcPtr; // class funcs are registed twice
+		funcReg->funcPtr = g_pSquirrel<context>->m_funcOverrides[funcName];
+		spdlog::info("Replacing {} in {}", funcName, GetContextName(context));
 	}
 
-	return g_pSquirrel<context>->RegisterSquirrelFunc(sqvm, funcReg, unknown);
+	return g_pSquirrel<context>->RegisterSquirrelFunc(sqvm, funcReg, classInit, unknown, unknown2);
 }
 
 template <ScriptContext context> bool (*CallScriptInitCallback)(void* sqvm, const char* callback);
@@ -730,7 +737,7 @@ ON_DLL_LOAD_RELIESON("client.dll", ClientSquirrel, ConCommand, (CModule module))
 	g_pSquirrel<ScriptContext::UI>->__sq_sealstructslot = g_pSquirrel<ScriptContext::CLIENT>->__sq_sealstructslot;
 
 	MAKEHOOK(
-		module.Offset(0x108E0),
+		module.Offset(0x13790),
 		&RegisterSquirrelFunctionHook<ScriptContext::CLIENT>,
 		&g_pSquirrel<ScriptContext::CLIENT>->RegisterSquirrelFunc);
 	g_pSquirrel<ScriptContext::UI>->RegisterSquirrelFunc = g_pSquirrel<ScriptContext::CLIENT>->RegisterSquirrelFunc;
@@ -816,7 +823,7 @@ ON_DLL_LOAD_RELIESON("server.dll", ServerSquirrel, ConCommand, (CModule module))
 	g_pSquirrel<ScriptContext::SERVER>->__sq_sealstructslot = module.Offset(0x5510).RCast<sq_sealstructslotType>();
 
 	MAKEHOOK(
-		module.Offset(0x1DD10),
+		module.Offset(0x20BC0),
 		&RegisterSquirrelFunctionHook<ScriptContext::SERVER>,
 		&g_pSquirrel<ScriptContext::SERVER>->RegisterSquirrelFunc);
 

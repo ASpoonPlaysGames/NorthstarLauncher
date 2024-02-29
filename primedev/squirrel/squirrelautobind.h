@@ -59,6 +59,29 @@ class __squirrelautobind;
 	}                                                                                                                                      \
 	template <ScriptContext context> SQRESULT CONCAT2(Script_, funcName)(HSquirrelVM * sqvm)
 
+
+#define REPLACE_SQCLASSFUNC(funcName,className, runOnContext)                                                                                             \
+	template <ScriptContext context> SQRESULT CONCAT2(Script_,CONCAT2(className, funcName))(HSquirrelVM * sqvm);                                              \
+	namespace                                                                                                                              \
+	{                                                                                                                                      \
+		__squirrelautobind CONCAT2(__squirrelautobind, __LINE__)(                                                                          \
+			[]()                                                                                                                           \
+			{                                                                                                                              \
+				if constexpr ((runOnContext)&ScriptContext::UI)                                                                            \
+					g_pSquirrel<ScriptContext::UI>->AddFuncOverride(__STR(className##.##funcName), CONCAT2(Script_,CONCAT2(className, funcName)) < ScriptContext::UI >);    \
+				if constexpr ((runOnContext)&ScriptContext::CLIENT)                                                                        \
+					g_pSquirrel<ScriptContext::CLIENT>->AddFuncOverride(                                                                   \
+						__STR(className##.##funcName), CONCAT2(Script_,CONCAT2(className, funcName)) < ScriptContext::CLIENT >);                                            \
+			},                                                                                                                             \
+			[]()                                                                                                                           \
+			{                                                                                                                              \
+				if constexpr ((runOnContext)&ScriptContext::SERVER)                                                                        \
+					g_pSquirrel<ScriptContext::SERVER>->AddFuncOverride(                                                                   \
+						__STR(className##.##funcName), CONCAT2(Script_,CONCAT2(className, funcName)) < ScriptContext::SERVER >);                                            \
+			});                                                                                                                            \
+	}                                                                                                                                      \
+	template <ScriptContext context> SQRESULT CONCAT2(Script_,CONCAT2(className, funcName))(HSquirrelVM * sqvm)
+
 class __squirrelautobind
 {
 public:
