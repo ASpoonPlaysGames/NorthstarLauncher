@@ -1,9 +1,11 @@
+#pragma once
+#include "squirrel/squirrel.h"
+#include "persistencedef.h"
 
+// basically just friendly api functions that can be called from hooks
 namespace ModdedPersistence
 {
-
-//QueryResult GetModdedPersistentVar(void* player, const char* key);
-//template <typename T> bool SetModdedPersistentVar(void* player, const char* key, T value); // needs specialisation for const char*
-// todo: other ones
+	// void return type is temp
+	//VarDef GetPersistentVarDef(ScriptContext context, HSquirrelVM& sqvm);
 
 }
