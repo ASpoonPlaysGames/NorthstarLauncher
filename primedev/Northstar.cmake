@@ -88,9 +88,9 @@ add_library(
     "mods/modmanager.h"
     "mods/modsavefiles.cpp"
     "mods/modsavefiles.h"
-    "persistence/persistenceapi.cpp"
-    "persistence/persistenceapi.h"
+    "persistence/persistencedata.cpp"
     "persistence/persistencedata.h"
+    "persistence/persistencedef.cpp"
     "persistence/persistencedef.h"
     "persistence/persistencehooks.cpp"
     "persistence/persistencehooks.h"
@@ -170,7 +170,7 @@ add_library(
     "dllmain.cpp"
     "ns_version.h"
     "Northstar.def"
-    )
+     "persistence/persistencedata.cpp")
 
 target_link_libraries(
     NorthstarDLL

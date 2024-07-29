@@ -1,5 +1,6 @@
 #pragma once
-#include <string>
+#include <map>
+#include "mods/modmanager.h"
 
 namespace ModdedPersistence
 {
@@ -19,51 +20,55 @@ namespace ModdedPersistence
 		switch (type)
 		{
 		case VarType::INT:
-		case VarType::FLOAT:
 		case VarType::BOOL:
 		case VarType::ENUM:
 			return true;
+		case VarType::FLOAT:
 		case VarType::STRING:
 		case VarType::INVALID:
 			return false;
 		}
+		assert_msg(false, "IsValidAsInteger - Unreachable VarType found?");
+		return false;
 	}
 
-	// interface representing a var definition in pdef
-	class VarDefQueryResult
+	class PersistentVarDefinition
 	{
 	public:
-		virtual const bool IsValidAsInteger() const = 0;
-		virtual const VarType GetType() const = 0;
-		virtual const char* GetName() const = 0;
+		PersistentVarDefinition(VarType type);
+		VarType GetType() { return m_type; }
+	private:
+		VarType m_type = VarType::INVALID;
+
+		friend class PersistentVar;
 	};
 
-	// represents an invalid var
-	class InvalidVarDefQueryResult : public VarDefQueryResult
+	// interface for accessing persistent var definitions
+	class PersistentVarDefinitionData
 	{
-	public: // VarDef implementation
-		const bool IsValidAsInteger() const override { return false; }
-		const VarType GetType() const override { return VarType::INVALID; }
-		const char* GetName() const override { return m_name.c_str(); }
-
 	public:
-		InvalidVarDefQueryResult(const char* name);
-	private:
-		const std::string m_name;
-	};
+		static PersistentVarDefinitionData* GetInstance();
 
-	class ValidVarDefQueryResult : public VarDefQueryResult
-	{
-	public: // VarDef implementation
-		const bool IsValidAsInteger() const override;
-		const VarType GetType() const override { return m_type; }
-		const char* GetName() const override { return m_name.c_str(); }
+		PersistentVarDefinition* FindVarDefinition(const char* name, bool& success);
 
-	public:
-		ValidVarDefQueryResult(const char* name, const VarType type);
+		// functions for handling parsing files
+
+		// loads base pdef from a stream (marks variables and types as vanilla)
+		bool LoadPersistenceBase(std::stringstream stream);
+		// loads pdiff for the given Mod from a stream (marks variables and types as owned by the mod)
+		bool LoadPersistenceDiff(Mod& mod, std::stringstream stream);
+		// finalises the loaded persistence, flattens vars, etc.
+		// no more changes can be made to the modded persistence definition after this is called
+		void Finalise();
+		// clears all loaded pdiff (and therefore all loaded modded persistence data)
+		void Clear();
+
+
 	private:
-		const std::string m_name;
-		const size_t m_nameHash;
-		const VarType m_type;
+		PersistentVarDefinitionData() = default;
+
+		bool m_finalised = false;
+		// stores the current modded pdef, reloaded on map change
+		std::map<size_t, PersistentVarDefinition> m_persistentVarDefs;
 	};
 }
