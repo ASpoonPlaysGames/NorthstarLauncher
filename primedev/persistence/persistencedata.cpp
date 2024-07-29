@@ -41,8 +41,7 @@ namespace ModdedPersistence
 			auto varDefs = PersistentVarDefinitionData::GetInstance();
 			PersistentVarTypeVariant variant;
 			variant = 3;
-			bool success = false;
-			auto newVar = PersistentVar(varDefs->FindVarDefinition("test_thing", success), variant);
+			auto newVar = PersistentVar(varDefs->FindVarDefinition("test_thing"), variant);
 			std::map<size_t, PersistentVar> persistentVars;
 			persistentVars.emplace(STR_HASH("test_thing"), newVar);
 			instance->m_persistentVars.emplace(nullptr, persistentVars);

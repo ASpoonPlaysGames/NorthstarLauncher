@@ -1,6 +1,7 @@
 #pragma once
-#include <map>
 #include "mods/modmanager.h"
+#include <map>
+#include <sstream>
 
 namespace ModdedPersistence
 {
@@ -49,14 +50,14 @@ namespace ModdedPersistence
 	public:
 		static PersistentVarDefinitionData* GetInstance();
 
-		PersistentVarDefinition* FindVarDefinition(const char* name, bool& success);
+		PersistentVarDefinition* FindVarDefinition(const char* name);
 
 		// functions for handling parsing files
 
 		// loads base pdef from a stream (marks variables and types as vanilla)
-		bool LoadPersistenceBase(std::stringstream stream);
+		bool LoadPersistenceBase(std::stringstream& stream);
 		// loads pdiff for the given Mod from a stream (marks variables and types as owned by the mod)
-		bool LoadPersistenceDiff(Mod& mod, std::stringstream stream);
+		bool LoadPersistenceDiff(Mod& mod, std::stringstream& stream);
 		// finalises the loaded persistence, flattens vars, etc.
 		// no more changes can be made to the modded persistence definition after this is called
 		void Finalise();
