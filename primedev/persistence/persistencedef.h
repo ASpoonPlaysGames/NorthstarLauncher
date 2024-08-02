@@ -1,6 +1,7 @@
 #pragma once
 #include "mods/modmanager.h"
 #include <map>
+#include <vector>
 #include <sstream>
 
 namespace ModdedPersistence
@@ -33,6 +34,50 @@ namespace ModdedPersistence
 		return false;
 	}
 
+	namespace ParseDefinitions
+	{
+		// information about a parsed variable
+		class VarDef
+		{
+			std::string m_identifier;
+			std::string m_typeIdentifier;
+			std::string m_arraySize; // can be either a number or an enum identifier
+
+			std::string m_owner;
+		};
+
+		// information about a parsed struct
+		// note: structs don't have owning mods, their members do
+		class StructDef
+		{
+			std::string m_identifier;
+			std::vector<VarDef> m_members;
+		};
+
+		struct EnumMember
+		{
+			std::string identifier;
+			std::string owner;
+		};
+
+		// information about a parsed enum
+		// note: enums don't have owning mods, their members do
+		class EnumDef
+		{
+		public:
+			const char* GetName() { return m_identifier.c_str(); }
+			int GetMemberCount();
+			int GetMemberIndex(std::string identifier);
+			const char* GetMemberName(int index);
+			const char* GetMemberOwner(int index);
+			void AddMember(std::string identifier, std::string owner);
+		private:
+			std::string m_identifier;
+			std::vector<EnumMember> m_members;
+		};
+	}
+
+	// flattened variable
 	class PersistentVarDefinition
 	{
 	public:
@@ -64,6 +109,8 @@ namespace ModdedPersistence
 		// clears all loaded pdiff (and therefore all loaded modded persistence data)
 		void Clear();
 
+		ParseDefinitions::EnumDef& GetEnumDefinition(std::string identifier, bool createIfNotFound = false);
+
 
 	private:
 		PersistentVarDefinitionData() = default;
@@ -71,5 +118,7 @@ namespace ModdedPersistence
 		bool m_finalised = false;
 		// stores the current modded pdef, reloaded on map change
 		std::map<size_t, PersistentVarDefinition> m_persistentVarDefs;
+
+		std::vector<ParseDefinitions::EnumDef> m_enums;
 	};
 }

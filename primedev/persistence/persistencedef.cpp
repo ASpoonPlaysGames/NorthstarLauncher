@@ -81,7 +81,7 @@ $STRUCT_END\
 		return var != m_persistentVarDefs.end() ? &var->second : nullptr;
 	}
 
-	const char* WHITESPACE_CHARS = " \t";
+	const char* WHITESPACE_CHARS = " \t\n";
 	const char* VALID_IDENTIFIER_CHARS = "aAbBcCdDeEfFgGhHiIjJkKlLmMnNoOpPqQrRsStTuUvVwWxXyYzZ0123456789_";
 	std::string_view ENUM_START = "$ENUM_START "; // ends with a space character since the identifier must be directly afterwards
 	std::string_view ENUM_END = "$ENUM_END";
@@ -89,35 +89,89 @@ $STRUCT_END\
 	std::string_view STRUCT_END = "$STRUCT_END";
 
 	// if owningModName is nullptr, then this is vanilla persistence
-	static bool ParsePersistence(std::stringstream& stream, const char* owningModName)
+	static bool ParsePersistence(std::stringstream& stream, const char* owningModName = nullptr)
 	{
+		auto& dataInstance = *PersistentVarDefinitionData::GetInstance();
+		const char* loggingOwnerName = owningModName == nullptr ? "Vanilla (potential launcher bug?)" : owningModName;
+
 		// temp
-		spdlog::info("\n\n\n\nPARSING STREAM:");
+		spdlog::info("\n\n\n\nPARSING STREAM: {}", loggingOwnerName);
+
+		ParseDefinitions::EnumDef* currentEnum = nullptr;
+		ParseDefinitions::StructDef* currentStruct = nullptr;
+
 		std::string currentLine;
 		while (std::getline(stream, currentLine))
 		{
-			// trim whitespace and comments
-			size_t firstNonWhitespace = currentLine.find_first_not_of(WHITESPACE_CHARS);
-			size_t commentStart = currentLine.find("//");
-			currentLine = currentLine.substr(firstNonWhitespace, commentStart - firstNonWhitespace);
+			// trim leading whitespace and trailing comments
+			const size_t firstNonWhitespace = currentLine.find_first_not_of(WHITESPACE_CHARS);
+			const size_t commentStart = currentLine.find("//");
+			std::string trimmedLine = currentLine.substr(firstNonWhitespace, commentStart - firstNonWhitespace);
 
 			// entire line is whitespace and/or comment
-			if (currentLine.length() == 0)
+			if (trimmedLine.length() == 0)
 				continue;
 
 			// temp
-			spdlog::info(currentLine);
+			spdlog::info(trimmedLine);
 
-			if (currentLine.starts_with(ENUM_START))
+			if (currentEnum != nullptr)
 			{
+				// currently in an enum definition, parse enum member
+				const size_t identifierStart = 0;
+				const size_t identifierEnd = trimmedLine.find_first_of(WHITESPACE_CHARS, identifierStart);
+				const std::string identifier = trimmedLine.substr(identifierStart, identifierEnd);
+				const size_t firstInvalidIdentifierChar = identifier.find_first_not_of(VALID_IDENTIFIER_CHARS);
+				if (firstInvalidIdentifierChar != std::string::npos)
+				{
+					spdlog::error("Error parsing persistence definition for {}", loggingOwnerName);
+					spdlog::error("Invalid enum member '{}' in enum '{}': character '{}' is not valid.", identifier, currentEnum->GetName(), identifier[firstInvalidIdentifierChar]);
+					return false;
+				}
 
+				const int memberIndex = currentEnum->GetMemberIndex(identifier);
+				if (memberIndex == -1)
+				{
+					spdlog::error("Error parsing persistence definition for {}", loggingOwnerName);
+					spdlog::error("Invalid enum member '{}' in enum '{}': duplicate member already defined in {}", identifier, currentEnum->GetName(), currentEnum->GetMemberOwner(memberIndex));
+					return false;
+				}
+
+				currentEnum->AddMember(identifier, owningModName);
 			}
-			else if (currentLine.starts_with(STRUCT_START))
+			else if (trimmedLine.starts_with(ENUM_START))
 			{
+				// parse enum definition
 
+				// get enum identifier
+				const size_t identifierStart = ENUM_START.length();
+				const size_t identifierEnd = trimmedLine.find_first_of(WHITESPACE_CHARS, identifierStart);
+				const std::string identifier = trimmedLine.substr(identifierStart, identifierEnd);
+				const size_t firstInvalidIdentifierChar = identifier.find_first_not_of(VALID_IDENTIFIER_CHARS);
+				if (firstInvalidIdentifierChar != std::string::npos)
+				{
+					spdlog::error("Error parsing persistence definition for {}", loggingOwnerName);
+					spdlog::error("Invalid enum identifier '{}': character '{}' is not valid.", identifier, identifier[firstInvalidIdentifierChar]);
+					return false;
+				}
+
+				// find or create enum definition (parsing members starts next iteration)
+				currentEnum = &dataInstance.GetEnumDefinition(identifier, true);
+			}
+			else if (trimmedLine.starts_with(STRUCT_START))
+			{
+				// parse struct definition
+
+				// get struct identifier
+
+				// find or create struct definition
+
+				// add members to struct definition
 			}
 
 		}
+
+		return true;
 	}
 
 	bool PersistentVarDefinitionData::LoadPersistenceBase(std::stringstream& stream)
