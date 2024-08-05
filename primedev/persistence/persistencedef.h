@@ -39,6 +39,7 @@ namespace ModdedPersistence
 		// information about a parsed variable
 		class VarDef
 		{
+		public:
 			std::string m_identifier;
 			std::string m_typeIdentifier;
 			std::string m_arraySize; // can be either a number or an enum identifier
@@ -63,12 +64,10 @@ namespace ModdedPersistence
 		{
 		public:
 			StructDef(const char* identifier);
-			const char* GetName() { return m_identifier.c_str(); }
 			int GetMemberCount() { return m_members.size(); }
 
 			void AddMember(VarDef member);
 		private:
-			std::string m_identifier;
 			std::vector<VarDef> m_members;
 		};
 
@@ -84,14 +83,12 @@ namespace ModdedPersistence
 		{
 		public:
 			EnumDef(const char* identifier);
-			const char* GetName() { return m_identifier.c_str(); }
 			int GetMemberCount() { return m_members.size(); }
 			int GetMemberIndex(const char* identifier);
 			const char* GetMemberName(int index);
 			const char* GetMemberOwner(int index);
 			void AddMember(EnumMember member);
 		private:
-			std::string m_identifier;
 			std::vector<EnumMember> m_members;
 		};
 	}
@@ -130,13 +127,13 @@ namespace ModdedPersistence
 
 		// Gets a type definition with the given identifier, returns nullptr if no such type exists
 		ParseDefinitions::TypeDef* GetTypeDefinition(const char* identifier);
-		// Registers a type definition, asserts if a type with the same identifier exists
-		ParseDefinitions::TypeDef& RegisterTypeDefinition(ParseDefinitions::TypeDef typeDef);
+		// Registers a type definition, returns nullptr if a var or type with the same identifier exists
+		ParseDefinitions::TypeDef* RegisterTypeDefinition(ParseDefinitions::TypeDef typeDef);
 
 		// Gets a var definition with the given identifier, returns nullptr if no such type exists
 		ParseDefinitions::VarDef* GetVarDefinition(const char* identifier);
-		// Registers a var definition, asserts if a var with the same identifier exists
-		ParseDefinitions::VarDef& RegisterVarDefinition(ParseDefinitions::VarDef varDef);
+		// Registers a var definition, returns nullptr if a var or type with the same identifier exists
+		ParseDefinitions::VarDef* RegisterVarDefinition(ParseDefinitions::VarDef varDef);
 
 
 	private:

@@ -103,7 +103,7 @@ $STRUCT_END\n\
 				if (firstInvalidIdentifierChar != std::string::npos)
 				{
 					spdlog::error("Error parsing persistence definition for {}", loggingOwnerName);
-					spdlog::error("Invalid enum member '{}' in enum '{}': character '{}' is not valid.", identifier, currentEnum->GetName(), identifier[firstInvalidIdentifierChar]);
+					spdlog::error("Invalid enum member '{}' in enum '{}': character '{}' is not valid.", identifier, currentEnum->GetIdentifier(), identifier[firstInvalidIdentifierChar]);
 					return false;
 				}
 
@@ -111,7 +111,7 @@ $STRUCT_END\n\
 				if (memberIndex != -1)
 				{
 					spdlog::error("Error parsing persistence definition for {}", loggingOwnerName);
-					spdlog::error("Invalid enum member '{}' in enum '{}': duplicate member already defined in {}", identifier, currentEnum->GetName(), currentEnum->GetMemberOwner(memberIndex));
+					spdlog::error("Invalid enum member '{}' in enum '{}': duplicate member already defined in {}", identifier, currentEnum->GetIdentifier(), currentEnum->GetMemberOwner(memberIndex));
 					return false;
 				}
 
@@ -139,7 +139,7 @@ $STRUCT_END\n\
 				// find or create enum definition (parsing members starts next iteration)
 				auto* typeDef = dataInstance.GetTypeDefinition(identifier.c_str());
 				if (typeDef == nullptr)
-					typeDef = &dataInstance.RegisterTypeDefinition(ParseDefinitions::EnumDef(identifier.c_str()));
+					typeDef = dataInstance.RegisterTypeDefinition(ParseDefinitions::EnumDef(identifier.c_str()));
 
 				// duplicate enum definitions are ok, (they just get concatenated) but we can't have conflicts between a struct and an enum
 				auto* enumDef = dynamic_cast<ParseDefinitions::EnumDef*>(typeDef);
@@ -182,9 +182,16 @@ $STRUCT_END\n\
 
 	namespace ParseDefinitions
 	{
+		TypeDef::TypeDef(const char* identifier)
+			: m_identifier(identifier)
+		{ }
+
+		StructDef::StructDef(const char* identifier)
+			: TypeDef(identifier)
+		{ }
+
 		EnumDef::EnumDef(const char* identifier)
 			: TypeDef(identifier)
-			, m_identifier(identifier)
 		{ }
 
 		int EnumDef::GetMemberIndex(const char* identifier)
@@ -278,7 +285,7 @@ $STRUCT_END\n\
 			if (enumDef == nullptr)
 				continue;
 
-			spdlog::info("{}", enumDef->GetName());
+			spdlog::info("{}", enumDef->GetIdentifier());
 			int memberCount = enumDef->GetMemberCount();
 			for (int i = 0; i < memberCount; ++i)
 			{
@@ -297,6 +304,62 @@ $STRUCT_END\n\
 		m_persistentVarDefs.clear();
 		// todo: clear persistent data as well since that will point to garbage now
 		m_finalised = false;
+	}
+
+	ParseDefinitions::TypeDef* PersistentVarDefinitionData::GetTypeDefinition(const char* identifier)
+	{
+		const size_t idHash = STR_HASH(identifier);
+
+		auto it = m_types.find(idHash);
+		return it != m_types.end() ? &it->second : nullptr;
+	}
+
+	ParseDefinitions::TypeDef* PersistentVarDefinitionData::RegisterTypeDefinition(ParseDefinitions::TypeDef typeDef)
+	{
+		const char* identifier = typeDef.GetIdentifier();
+		const size_t idHash = STR_HASH(identifier);
+
+		// ensure that the identifier isn't already in use
+		if (m_vars.find(idHash) != m_vars.end())
+		{
+			spdlog::error("Failed to register persistent type: Identifier {} is already defined as a persistent var.");
+			return nullptr;
+		}
+		if (m_types.find(idHash) != m_types.end())
+		{
+			spdlog::error("Failed to register persistent type: Identifier {} is already defined as a persistent type.");
+			return nullptr;
+		}
+
+		return &m_types.emplace(idHash, typeDef).first->second;
+	}
+
+	ParseDefinitions::VarDef* PersistentVarDefinitionData::GetVarDefinition(const char* identifier)
+	{
+		const size_t idHash = STR_HASH(identifier);
+
+		auto it = m_vars.find(idHash);
+		return it != m_vars.end() ? &it->second : nullptr;
+	}
+
+	ParseDefinitions::VarDef* PersistentVarDefinitionData::RegisterVarDefinition(ParseDefinitions::VarDef varDef)
+	{
+		const char* identifier = varDef.m_identifier.c_str();
+		const size_t idHash = STR_HASH(identifier);
+
+		// ensure that the identifier isn't already in use
+		if (m_vars.find(idHash) != m_vars.end())
+		{
+			spdlog::error("Failed to register persistent var: Identifier {} is already defined as a persistent var.");
+			return nullptr;
+		}
+		if (m_types.find(idHash) != m_types.end())
+		{
+			spdlog::error("Failed to register persistent var: Identifier {} is already defined as a persistent type.");
+			return nullptr;
+		}
+
+		return &m_vars.emplace(idHash, varDef).first->second;
 	}
 
 }
