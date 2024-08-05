@@ -139,6 +139,11 @@ namespace ModdedPersistence
 	private:
 		PersistentVarDefinitionData() = default;
 
+		bool ParsePersistence(std::stringstream& stream, const char* owningModName = "");
+		// Parses a type identifier (an identifier that cannot be an array etc.)
+		// Returns the identifier and the position of the first invalid character in the identifier (std::string::npos if none)
+		std::pair<std::string, const size_t> ParseTypeIdentifier(std::string& line, const size_t identifierStart);
+
 		bool m_finalised = false;
 		// stores the current modded pdef, reloaded on map change
 		std::map<size_t, PersistentVarDefinition> m_persistentVarDefs;
