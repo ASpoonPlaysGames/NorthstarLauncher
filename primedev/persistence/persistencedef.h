@@ -40,8 +40,9 @@ namespace ModdedPersistence
 		class VarDef
 		{
 		public:
+			std::string m_type;
+			int m_nativeArraySize; // used for strings e.g. string{16}
 			std::string m_identifier;
-			std::string m_typeIdentifier;
 			std::string m_arraySize; // can be either a number or an enum identifier
 
 			std::string m_owner;
@@ -68,7 +69,7 @@ namespace ModdedPersistence
 
 			void AddMember(VarDef member);
 		private:
-			std::vector<VarDef> m_members;
+			std::map<size_t, ParseDefinitions::VarDef> m_members;
 		};
 
 		struct EnumMember
@@ -140,9 +141,8 @@ namespace ModdedPersistence
 		PersistentVarDefinitionData() = default;
 
 		bool ParsePersistence(std::stringstream& stream, const char* owningModName = "");
-		// Parses a type identifier (an identifier that cannot be an array etc.)
-		// Returns the identifier and the position of the first invalid character in the identifier (std::string::npos if none)
-		std::pair<std::string, const size_t> ParseTypeIdentifier(std::string& line, const size_t identifierStart);
+		bool ParseEnumMember(const std::string& line, const char* owningModName, ParseDefinitions::EnumDef& parentEnum);
+		bool ParseVarDefinition(const std::string& line, const char* owningModName, std::map<size_t, ParseDefinitions::VarDef>& parentStruct);
 
 		bool m_finalised = false;
 		// stores the current modded pdef, reloaded on map change

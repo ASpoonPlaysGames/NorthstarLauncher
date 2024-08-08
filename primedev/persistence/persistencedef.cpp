@@ -1,5 +1,6 @@
 #include "persistencedef.h"
 #include <string>
+#include <regex>
 
 namespace ModdedPersistence
 {
@@ -56,6 +57,10 @@ $STRUCT_END\n\
 	std::string_view ENUM_END = "$ENUM_END";
 	std::string_view STRUCT_START = "$STRUCT_START "; // ends with a space character since the identifier must be directly afterwards
 	std::string_view STRUCT_END = "$STRUCT_END";
+
+	// trims leading whitespace, comments, and trailing whitespace before comments
+	const std::regex LINE_TRIM_RGX("^\\s*(.*?)\\s*(?:\\/\\/.*)?$");
+	const std::regex ENUM_START_RGX("\\$ENUM_START ([a-zA-Z_]+)");
 
 	namespace ParseDefinitions
 	{
@@ -232,198 +237,74 @@ $STRUCT_END\n\
 		return &m_vars.emplace(idHash, varDef).first->second;
 	}
 
-	// if owningModName is an empty string, then this is vanilla persistence
-	// note: i hate this function, its messy and bad
 	bool PersistentVarDefinitionData::ParsePersistence(std::stringstream& stream, const char* owningModName)
 	{
-		auto& dataInstance = *PersistentVarDefinitionData::GetInstance();
-		const char* loggingOwnerName = strcmp(owningModName, "") ? owningModName : "Vanilla (potential launcher bug?)";
-
-		// temp
-		spdlog::info("\n\n\n\nPARSING STREAM: {}", loggingOwnerName);
-
-		// one or neither of these can be non-nullptr at once
 		ParseDefinitions::EnumDef* currentEnum = nullptr;
 		ParseDefinitions::StructDef* currentStruct = nullptr;
 
 		std::string currentLine;
 		while (std::getline(stream, currentLine))
 		{
-			// trim leading whitespace and trailing comments
-			const size_t firstNonWhitespace = currentLine.find_first_not_of(WHITESPACE_CHARS);
-			if (firstNonWhitespace == std::string::npos)
-				continue; // only whitespace
-			const size_t commentStart = currentLine.find("//");
-			std::string trimmedLine = currentLine.substr(firstNonWhitespace, commentStart - firstNonWhitespace);
+			// trim whitespace and comments
+			std::smatch matches;
+			if (!std::regex_search(currentLine, matches, LINE_TRIM_RGX))
+			{
+				spdlog::error("Failed to match line trimming regex? Probable launcher bug D:");
+				spdlog::error(currentLine);
+				return false;
+			}
+			if (matches.size() != 2)
+			{
+				// note: the vector of matches includes the full matches and the captured groups like this
+				// full, group1, group2, full, group1, group2, etc.
+				// so because we have 1 capture group, we expect two entries, the first being the full match
+				// and the second being the capture group.
+				spdlog::error("Got {} regex matches (expected 2) for line trimming regex? Probable launcher bug D:", matches.size());
+				spdlog::error(currentLine);
+				for (auto& it : matches)
+					spdlog::error(it.str());
+				return false;
+			}
 
-			// entire line is whitespace and/or comment
-			if (trimmedLine.length() == 0)
+			std::string trimmedLine = matches[1];
+			// pure whitespace and/or comment line, nothing to parse
+			if (trimmedLine.empty())
 				continue;
 
-			// temp
-			spdlog::info(trimmedLine);
 
-			if (currentEnum != nullptr)
-			{
-				// check for enum end
-				if (trimmedLine.starts_with(ENUM_END))
-				{
-					currentEnum = nullptr;
-					continue;
-				}
 
-				// currently in an enum definition, parse enum member
-				auto [identifier, firstInvalidCharIndex] = ParseTypeIdentifier(trimmedLine, 0);
-				if (firstInvalidCharIndex != std::string::npos)
-				{
-					spdlog::error("Error parsing persistence definition for {}", loggingOwnerName);
-					spdlog::error(
-						"Invalid enum member '{}' in enum '{}': character '{}' is not valid.",
-						identifier,
-						currentEnum->GetIdentifier(),
-						identifier[firstInvalidCharIndex]);
-					return false;
-				}
-
-				const int memberIndex = currentEnum->GetMemberIndex(identifier.c_str());
-				if (memberIndex != -1)
-				{
-					spdlog::error("Error parsing persistence definition for {}", loggingOwnerName);
-					spdlog::error(
-						"Invalid enum member '{}' in enum '{}': duplicate member already defined in {}",
-						identifier,
-						currentEnum->GetIdentifier(),
-						currentEnum->GetMemberOwner(memberIndex));
-					return false;
-				}
-
-				ParseDefinitions::EnumMember member = ParseDefinitions::EnumMember();
-				member.identifier = identifier;
-				member.owner = owningModName;
-				currentEnum->AddMember(member);
-			}
-			else if (currentStruct != nullptr && trimmedLine.starts_with(STRUCT_END))
-			{
-				currentStruct = nullptr;
-				continue;
-			}
-			else if (trimmedLine.starts_with(ENUM_START))
-			{
-				// can't define enums inside of other enums
-				if (currentEnum != nullptr)
-				{
-					spdlog::error("Error parsing persistence definition for {}", loggingOwnerName);
-					spdlog::error("Trying to define a new enum inside of an enum: '{}'", currentEnum->GetIdentifier());
-					return false;
-				}
-
-				// can't define enums inside a struct definition
-				if (currentStruct != nullptr)
-				{
-					spdlog::error("Error parsing persistence definition for {}", loggingOwnerName);
-					spdlog::error("Trying to define a new enum inside of a struct: '{}'", currentStruct->GetIdentifier());
-					return false;
-				}
-
-				// get enum identifier
-				auto [identifier, firstInvalidCharIndex] = ParseTypeIdentifier(trimmedLine, ENUM_START.length());
-				if (firstInvalidCharIndex != std::string::npos)
-				{
-					spdlog::error("Error parsing persistence definition for {}", loggingOwnerName);
-					spdlog::error(
-						"Invalid enum identifier '{}': character '{}' is not valid.", identifier, identifier[firstInvalidCharIndex]);
-					return false;
-				}
-
-				// find or create enum definition (parsing members starts next iteration)
-				auto* typeDef = dataInstance.GetTypeDefinition(identifier.c_str());
-				if (typeDef == nullptr)
-					typeDef = dataInstance.RegisterTypeDefinition(ParseDefinitions::EnumDef(identifier.c_str()));
-
-				// duplicate enum definitions are ok, (they just get concatenated) but we can't have conflicts between a struct and an enum
-				auto* enumDef = dynamic_cast<ParseDefinitions::EnumDef*>(typeDef);
-				if (enumDef == nullptr)
-				{
-					spdlog::error("Error parsing persistence definition for {}", loggingOwnerName);
-					spdlog::error("Invalid enum identifier '{}': identifier already exists as a struct", identifier);
-					return false;
-				}
-
-				currentEnum = enumDef;
-				continue;
-			}
-			else if (trimmedLine.starts_with(STRUCT_START))
-			{
-				// can't define structs inside an enum definition
-				if (currentEnum != nullptr)
-				{
-					spdlog::error("Error parsing persistence definition for {}", loggingOwnerName);
-					spdlog::error("Trying to define a new struct inside of an enum: '{}'", currentEnum->GetIdentifier());
-					return false;
-				}
-
-				// can't define structs inside of other structs
-				if (currentStruct != nullptr)
-				{
-					spdlog::error("Error parsing persistence definition for {}", loggingOwnerName);
-					spdlog::error("Trying to define a new struct inside of a struct: '{}'", currentStruct->GetIdentifier());
-					return false;
-				}
-
-				// get struct identifier
-				auto [identifier, firstInvalidCharIndex] = ParseTypeIdentifier(trimmedLine, STRUCT_START.length());
-				if (firstInvalidCharIndex != std::string::npos)
-				{
-					spdlog::error("Error parsing persistence definition for {}", loggingOwnerName);
-					spdlog::error(
-						"Invalid struct identifier '{}': character '{}' is not valid.", identifier, identifier[firstInvalidCharIndex]);
-					return false;
-				}
-
-				// find or create enum definition (parsing members starts next iteration)
-				auto* typeDef = dataInstance.GetTypeDefinition(identifier.c_str());
-				if (typeDef == nullptr)
-					typeDef = dataInstance.RegisterTypeDefinition(ParseDefinitions::StructDef(identifier.c_str()));
-
-				// duplicate struct definitions are ok, (they just get concatenated) but we can't have conflicts between a struct and an
-				// enum
-				auto* structDef = dynamic_cast<ParseDefinitions::StructDef*>(typeDef);
-				if (structDef == nullptr)
-				{
-					spdlog::error("Error parsing persistence definition for {}", loggingOwnerName);
-					spdlog::error("Invalid struct identifier '{}': identifier already exists as an enum", identifier);
-					return false;
-				}
-
-				currentStruct = structDef;
-				continue;
-			}
-			else
-			{
-				// general var parsing, adds to currentStruct if non-nullptr
-
-				// parse type identifier. no validity checks here, checked later
-
-				// parse identifier
-
-				// parse array size (optional)
-
-			}
 		}
-
-		// temp, for logging
-		dataInstance.Finalise();
 
 		return true;
 	}
 
-	std::pair<std::string, const size_t> PersistentVarDefinitionData::ParseTypeIdentifier(std::string& line, const size_t identifierStart)
+	bool PersistentVarDefinitionData::ParseEnumMember(const std::string& line, const char* owningModName, ParseDefinitions::EnumDef& parentEnum)
 	{
-		const size_t identifierEnd = line.find_first_of(WHITESPACE_CHARS, identifierStart);
-		const std::string identifier = line.substr(identifierStart, identifierEnd);
-		const size_t firstInvalidIdentifierChar = identifier.find_first_not_of(VALID_IDENTIFIER_CHARS);
+		const size_t firstInvalid = line.find_first_not_of(VALID_IDENTIFIER_CHARS);
+		if (firstInvalid != std::string::npos)
+		{
+			spdlog::error("Invalid character {} in enum member '{}'", line[firstInvalid], line);
+			return false;
+		}
 
-		return std::make_pair(identifier, firstInvalidIdentifierChar);
+		const int index = parentEnum.GetMemberIndex(line.c_str());
+		if (index != -1)
+		{
+			spdlog::error("Invalid enum member {}, member already exists in {}", line, parentEnum.GetMemberOwner(index));
+			return false;
+		}
+
+		ParseDefinitions::EnumMember member;
+		member.identifier = line;
+		member.owner = owningModName;
+
+		parentEnum.AddMember(member);
+		return true;
+	}
+
+	bool PersistentVarDefinitionData::ParseVarDefinition(const std::string& line, const char* owningModName, std::map<size_t, ParseDefinitions::VarDef>& parentStruct)
+	{
+
 	}
 
 } // namespace ModdedPersistence
