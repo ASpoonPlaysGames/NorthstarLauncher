@@ -51,10 +51,11 @@ namespace ModdedPersistence
 		class TypeDef
 		{
 		public:
-			TypeDef(const char* identifier);
 			const char* GetIdentifier() const { return m_identifier.c_str(); }
 			virtual void GatherChildren(VarDef parent) {};
 
+		protected:
+			TypeDef(const char* identifier);
 		private:
 			const std::string m_identifier;
 		};
@@ -66,6 +67,7 @@ namespace ModdedPersistence
 		public:
 			StructDef(const char* identifier);
 			int GetMemberCount() { return m_members.size(); }
+			std::map<size_t, ParseDefinitions::VarDef>& GetMembers() { return m_members; }
 
 			void AddMember(VarDef member);
 		private:
@@ -129,7 +131,7 @@ namespace ModdedPersistence
 		// Gets a type definition with the given identifier, returns nullptr if no such type exists
 		ParseDefinitions::TypeDef* GetTypeDefinition(const char* identifier);
 		// Registers a type definition, returns nullptr if a var or type with the same identifier exists
-		ParseDefinitions::TypeDef* RegisterTypeDefinition(ParseDefinitions::TypeDef typeDef);
+		ParseDefinitions::TypeDef* RegisterTypeDefinition(std::shared_ptr<ParseDefinitions::TypeDef> typeDef);
 
 		// Gets a var definition with the given identifier, returns nullptr if no such type exists
 		ParseDefinitions::VarDef* GetVarDefinition(const char* identifier);
@@ -140,16 +142,17 @@ namespace ModdedPersistence
 	private:
 		PersistentVarDefinitionData() = default;
 
+		const size_t GetHash(std::string identifier) const { return STR_HASH(identifier); }
 		bool ParsePersistence(std::stringstream& stream, const char* owningModName = "");
 		bool ParseEnumMember(const std::string& line, const char* owningModName, ParseDefinitions::EnumDef& parentEnum);
-		bool ParseVarDefinition(const std::string& line, const char* owningModName, std::map<size_t, ParseDefinitions::VarDef>& parentStruct);
+		bool ParseVarDefinition(const std::string& line, const char* owningModName, std::map<size_t, ParseDefinitions::VarDef>& targetMap);
 
 		bool m_finalised = false;
 		// stores the current modded pdef, reloaded on map change
 		std::map<size_t, PersistentVarDefinition> m_persistentVarDefs;
 
 		// all currently known persistence types (except basic types e.g int)
-		std::map<size_t, ParseDefinitions::TypeDef> m_types;
+		std::map<size_t, std::shared_ptr<ParseDefinitions::TypeDef>> m_types;
 		// all currently known persistent var defs (not flattened, raw parsing)
 		std::map<size_t, ParseDefinitions::VarDef> m_vars;
 	};

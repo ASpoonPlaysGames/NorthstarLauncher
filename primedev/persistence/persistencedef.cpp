@@ -51,16 +51,17 @@ $STRUCT_START test_struct_def\n\
 $STRUCT_END\n\
 ";
 
-	const char* WHITESPACE_CHARS = " \t\n";
 	const char* VALID_IDENTIFIER_CHARS = "aAbBcCdDeEfFgGhHiIjJkKlLmMnNoOpPqQrRsStTuUvVwWxXyYzZ0123456789_";
-	std::string_view ENUM_START = "$ENUM_START "; // ends with a space character since the identifier must be directly afterwards
-	std::string_view ENUM_END = "$ENUM_END";
-	std::string_view STRUCT_START = "$STRUCT_START "; // ends with a space character since the identifier must be directly afterwards
-	std::string_view STRUCT_END = "$STRUCT_END";
+
+	#define ID_RGX "[a-zA-Z0-9_]+"
 
 	// trims leading whitespace, comments, and trailing whitespace before comments
 	const std::regex LINE_TRIM_RGX("^\\s*(.*?)\\s*(?:\\/\\/.*)?$");
-	const std::regex ENUM_START_RGX("\\$ENUM_START ([a-zA-Z_]+)");
+	const std::regex ENUM_START_RGX("^\\$ENUM_START (" ID_RGX ")$");
+	const std::regex ENUM_END_RGX("^\\$ENUM_END$");
+	const std::regex STRUCT_START_RGX("^\\$STRUCT_START (" ID_RGX ")$");
+	const std::regex STRUCT_END_RGX("^\\$STRUCT_END$");
+	const std::regex VAR_DEF_RGX("^(" ID_RGX ")(?:\\{(\\d+)\\})?\\s+(" ID_RGX ")(?:\\[(\\d+|" ID_RGX ")\\])?$");
 
 	namespace ParseDefinitions
 	{
@@ -126,6 +127,7 @@ $STRUCT_END\n\
 			// todo: remove hardcoded file
 			std::stringstream stream(TEST_PDIFF_STRING);
 			instance->LoadPersistenceBase(stream);
+			instance->Finalise();
 		}
 
 		return instance;
@@ -153,10 +155,11 @@ $STRUCT_END\n\
 	void PersistentVarDefinitionData::Finalise()
 	{
 		// temp: logging all of the members
-		spdlog::info("\n\n\n\nENUMS:");
+		spdlog::info("\n\n");
+		spdlog::info("ENUMS:");
 		for (auto& it : m_types)
 		{
-			auto* enumDef = dynamic_cast<ParseDefinitions::EnumDef*>(&it.second);
+			auto* enumDef = dynamic_cast<ParseDefinitions::EnumDef*>(it.second.get());
 			if (enumDef == nullptr)
 				continue;
 
@@ -168,6 +171,29 @@ $STRUCT_END\n\
 			}
 			spdlog::info("");
 		}
+		spdlog::info("\n\n");
+		spdlog::info("STRUCTS:");
+		for (auto& it : m_types)
+		{
+			auto* structDef = dynamic_cast<ParseDefinitions::StructDef*>(it.second.get());
+			if (structDef == nullptr)
+				continue;
+
+			spdlog::info("{}", structDef->GetIdentifier());
+
+			for (auto& [hash, member] : structDef->GetMembers())
+			{
+				spdlog::info("\t{}{{{}}} {}[{}] ({})", member.m_type, member.m_nativeArraySize, member.m_identifier, member.m_arraySize, member.m_owner);
+			}
+			spdlog::info("");
+		}
+		spdlog::info("\n\n");
+		spdlog::info("VARS:");
+		for (auto& [hash, var] : m_vars)
+		{
+			spdlog::info("{}{{{}}} {}[{}] ({})", var.m_type, var.m_nativeArraySize, var.m_identifier, var.m_arraySize, var.m_owner);
+		}
+		spdlog::info("\n\n");
 
 		// flatten variables and populate m_persistentVarDefs
 
@@ -186,12 +212,12 @@ $STRUCT_END\n\
 		const size_t idHash = STR_HASH(identifier);
 
 		auto it = m_types.find(idHash);
-		return it != m_types.end() ? &it->second : nullptr;
+		return it != m_types.end() ? it->second.get() : nullptr;
 	}
 
-	ParseDefinitions::TypeDef* PersistentVarDefinitionData::RegisterTypeDefinition(ParseDefinitions::TypeDef typeDef)
+	ParseDefinitions::TypeDef* PersistentVarDefinitionData::RegisterTypeDefinition(std::shared_ptr<ParseDefinitions::TypeDef> typeDef)
 	{
-		const char* identifier = typeDef.GetIdentifier();
+		const char* identifier = typeDef->GetIdentifier();
 		const size_t idHash = STR_HASH(identifier);
 
 		// ensure that the identifier isn't already in use
@@ -206,7 +232,7 @@ $STRUCT_END\n\
 			return nullptr;
 		}
 
-		return &m_types.emplace(idHash, typeDef).first->second;
+		return m_types.emplace(idHash, typeDef).first->second.get();
 	}
 
 	ParseDefinitions::VarDef* PersistentVarDefinitionData::GetVarDefinition(const char* identifier)
@@ -242,8 +268,9 @@ $STRUCT_END\n\
 		ParseDefinitions::EnumDef* currentEnum = nullptr;
 		ParseDefinitions::StructDef* currentStruct = nullptr;
 
+		unsigned int lineNumber = 0;
 		std::string currentLine;
-		while (std::getline(stream, currentLine))
+		while (++lineNumber, std::getline(stream, currentLine))
 		{
 			// trim whitespace and comments
 			std::smatch matches;
@@ -271,8 +298,110 @@ $STRUCT_END\n\
 			if (trimmedLine.empty())
 				continue;
 
+			// parsing state machine
 
+			if (trimmedLine.starts_with('$'))
+			{
+				// command sequences ($ENUM_START etc.)
+				std::smatch commandMatches;
+				if (std::regex_match(trimmedLine, commandMatches, ENUM_START_RGX))
+				{
+					if (currentEnum != nullptr || currentStruct != nullptr)
+					{
+						spdlog::error("Unexpected command sequence {} on line {} ({})", trimmedLine, lineNumber, owningModName);
+						return false;
+					}
 
+					// find or create enum definition
+					// todo: change signature to just take a string ref? str().c_str() is dumb
+					ParseDefinitions::TypeDef* typeDef = GetTypeDefinition(commandMatches[1].str().c_str());
+					if (typeDef == nullptr)
+					{
+						auto newEnumDef = std::make_shared<ParseDefinitions::EnumDef>(ParseDefinitions::EnumDef(commandMatches[1].str().c_str()));
+						typeDef = RegisterTypeDefinition(newEnumDef);
+					}
+
+					auto* foundEnumDef = dynamic_cast<ParseDefinitions::EnumDef*>(typeDef);
+					if (foundEnumDef == nullptr)
+					{
+						spdlog::error("Invalid enum identifier: '{}' ({}) is already defined as a struct", commandMatches[1].str(), owningModName);
+						return false;
+					}
+
+					// set currentEnum
+					currentEnum = foundEnumDef;
+				}
+				else if(std::regex_match(trimmedLine, commandMatches, ENUM_END_RGX))
+				{
+					if (currentEnum == nullptr || currentStruct != nullptr)
+					{
+						spdlog::error("Unexpected command sequence {} on line {} ({})", trimmedLine, lineNumber, owningModName);
+						return false;
+					}
+
+					currentEnum = nullptr;
+				}
+				else if(std::regex_match(trimmedLine, commandMatches, STRUCT_START_RGX))
+				{
+					if (currentEnum != nullptr || currentStruct != nullptr)
+					{
+						spdlog::error("Unexpected command sequence {} on line {} ({})", trimmedLine, lineNumber, owningModName);
+						return false;
+					}
+
+					// find or create struct definition
+					// todo: change signature to just take a string ref? str().c_str() is dumb
+					ParseDefinitions::TypeDef* typeDef = GetTypeDefinition(commandMatches[1].str().c_str());
+					if (typeDef == nullptr)
+					{
+						auto newStructDef = std::make_shared<ParseDefinitions::StructDef>(ParseDefinitions::StructDef(commandMatches[1].str().c_str()));
+						typeDef = RegisterTypeDefinition(newStructDef);
+					}
+
+					auto* foundStructDef = dynamic_cast<ParseDefinitions::StructDef*>(typeDef);
+					if (foundStructDef == nullptr)
+					{
+						spdlog::error("Invalid struct identifier: '{}' ({}) is already defined as an enum", commandMatches[1].str(), owningModName);
+						return false;
+					}
+
+					// set currentEnum
+					currentStruct = foundStructDef;
+				}
+				else if(std::regex_match(trimmedLine, commandMatches, STRUCT_END_RGX))
+				{
+					if (currentEnum != nullptr || currentStruct == nullptr)
+					{
+						spdlog::error("Unexpected command sequence {} on line {} ({})", trimmedLine, lineNumber, owningModName);
+						return false;
+					}
+
+					currentStruct = nullptr;
+				}
+				else
+				{
+					spdlog::error("Invalid command sequence '{}' on line {} ({})", trimmedLine, lineNumber, owningModName);
+					return false;
+				}
+			}
+			else if (currentEnum != nullptr)
+			{
+				// enum member parsing
+				if (!ParseEnumMember(trimmedLine, owningModName, *currentEnum))
+				{
+					spdlog::error("Failed parsing enum member on line {} ({})", lineNumber, owningModName);
+					return false;
+				}
+			}
+			else
+			{
+				// var parsing
+				if (!ParseVarDefinition(trimmedLine, owningModName, currentStruct != nullptr ? currentStruct->GetMembers() : m_vars))
+				{
+					spdlog::error("Failed parsing var definition on line {} ({})", lineNumber, owningModName);
+					return false;
+				}
+			}
 		}
 
 		return true;
@@ -302,9 +431,51 @@ $STRUCT_END\n\
 		return true;
 	}
 
-	bool PersistentVarDefinitionData::ParseVarDefinition(const std::string& line, const char* owningModName, std::map<size_t, ParseDefinitions::VarDef>& parentStruct)
+	bool PersistentVarDefinitionData::ParseVarDefinition(const std::string& line, const char* owningModName, std::map<size_t, ParseDefinitions::VarDef>& targetMap)
 	{
+		std::smatch matches;
+		if (!std::regex_search(line, matches, VAR_DEF_RGX))
+		{
+			spdlog::error("Invalid var definition: line doesn't match var definition regex");
+			spdlog::error(line);
+			return false;
+		}
 
+		if (matches.size() != 5)
+		{
+			// note: the vector of matches includes the full matches and the captured groups like this
+			// full, group1, group2, full, group1, group2, etc.
+			spdlog::error("Got {} regex matches (expected 5) for var definition regex? Probable launcher bug D:", matches.size());
+			spdlog::error(line);
+			for (auto& it : matches)
+				spdlog::error(it.str());
+			return false;
+		}
+
+		const std::string type = matches[1];
+		const std::string nativeArraySize = matches[2];
+		const std::string identifier = matches[3];
+		const std::string arraySize = matches[4];
+
+		ParseDefinitions::VarDef varDef;
+		varDef.m_type = type;
+		if (!nativeArraySize.empty())
+			varDef.m_nativeArraySize = std::stoi(nativeArraySize);
+		else
+			varDef.m_nativeArraySize = 1;
+		varDef.m_identifier = identifier;
+		varDef.m_arraySize = arraySize;
+		varDef.m_owner = owningModName;
+
+		auto [foundVarDef, emplaceSuccess] = targetMap.emplace(GetHash(identifier), varDef);
+		if (!emplaceSuccess)
+		{
+			spdlog::error("Var name collision: '{}' already defined in {}", identifier, foundVarDef->second.m_owner);
+			spdlog::error(line);
+			return false;
+		}
+
+		return true;
 	}
 
 } // namespace ModdedPersistence
