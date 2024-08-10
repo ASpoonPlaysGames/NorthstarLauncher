@@ -22,6 +22,7 @@ REPLACE_SQCLASSFUNC(GetPersistentVarAsInt, CPlayer, ScriptContext::SERVER)
 	PersistentVarDefinition* varDef = varDefData.FindVarDefinition(argString);
 	// todo: nuke this logic, eventually we should *only* use modded persistence systems so that we handle proper ownership of enum index values
 	// if not found, return vanilla function result, let vanilla persistence handle this
+	// addendum: fall back on vanilla only if we dont have a value in modded + it exists in pdef as a pure vanilla def
 	if (varDef == nullptr)
 		return sq.m_funcOriginals["CPlayer.GetPersistentVarAsInt"](sqvm);
 

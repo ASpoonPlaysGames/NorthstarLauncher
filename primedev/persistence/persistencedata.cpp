@@ -37,7 +37,14 @@ namespace ModdedPersistence
 		{
 			instance = new PersistentVarData();
 
-			
+			// todo: remove test data
+			auto varDefs = PersistentVarDefinitionData::GetInstance();
+			PersistentVarTypeVariant variant;
+			variant = 69;
+			auto newVar = PersistentVar(varDefs->FindVarDefinition("test_enum_array[test_enum_def_2]"), variant);
+			std::map<size_t, PersistentVar> persistentVars;
+			persistentVars.emplace(STR_HASH("test_enum_array[test_enum_def_2]"), newVar);
+			instance->m_persistentVars.emplace(nullptr, persistentVars);
 		}
 
 		return instance;
