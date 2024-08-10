@@ -127,10 +127,20 @@ $STRUCT_END\n\
 		}
 	} // namespace ParseDefinitions
 
-	PersistentVarDefinition::PersistentVarDefinition(VarType type, std::string identifier) : m_type(type), m_identifier(identifier) {}
+	PersistentVarDefinition::PersistentVarDefinition(VarType type, std::string identifier, std::vector<std::string>& dependencies)
+		: m_type(type)
+		, m_identifier(identifier)
+		, m_dependencies(dependencies)
+		, m_enumType(nullptr)
+	{
+	}
 
-	PersistentVarDefinition::PersistentVarDefinition(VarType type, std::string identifier, const ParseDefinitions::EnumDef* enumType)
-		: m_type(type), m_identifier(identifier), m_enumType(enumType)
+	PersistentVarDefinition::PersistentVarDefinition(
+		VarType type, std::string identifier, std::vector<std::string>& dependencies, const ParseDefinitions::EnumDef* enumType)
+		: m_type(type)
+		, m_identifier(identifier)
+		, m_dependencies(dependencies)
+		, m_enumType(enumType)
 	{
 	}
 
@@ -577,55 +587,66 @@ $STRUCT_END\n\
 				if (useArraySuffix)
 					idStr.append(std::format("[{}]", arrayMember));
 
+				VarType targetType = VarType::INVALID;
+
 				// no switch on string in C++ :(
 				if (!strcmp(typeStr, "bool"))
 				{
-					PersistentVarDefinition toAdd(VarType::BOOL, idStr);
+					PersistentVarDefinition toAdd(VarType::BOOL, idStr, varDependentMods);
 					targetVarDefs.emplace(GetHash(idStr), toAdd);
 					continue;
 				}
 				else if (!strcmp(typeStr, "int"))
 				{
-					PersistentVarDefinition toAdd(VarType::INT, idStr);
+					PersistentVarDefinition toAdd(VarType::INT, idStr, varDependentMods);
 					targetVarDefs.emplace(GetHash(idStr), toAdd);
 					continue;
 				}
 				else if (!strcmp(typeStr, "float"))
 				{
-					PersistentVarDefinition toAdd(VarType::FLOAT, idStr);
+					PersistentVarDefinition toAdd(VarType::FLOAT, idStr, varDependentMods);
 					targetVarDefs.emplace(GetHash(idStr), toAdd);
 					continue;
 				}
 				else if (!strcmp(typeStr, "string"))
 				{
-					PersistentVarDefinition toAdd(VarType::STRING, idStr);
+					PersistentVarDefinition toAdd(VarType::STRING, idStr, varDependentMods);
 					targetVarDefs.emplace(GetHash(idStr), toAdd);
 					continue;
 				}
-				else
+
+				if (targetType != VarType::INVALID)
 				{
-					auto* typeDef = GetTypeDefinition(typeStr);
+					PersistentVarDefinition toAdd(targetType, idStr, varDependentMods);
+					if (targetType == VarType::STRING)
+						toAdd.SetStringSize(varDef.GetNativeArraySize());
 
-					if (typeDef == nullptr)
-					{
-						spdlog::error("Var type not found: {}", typeStr);
-						continue;
-					}
+					targetVarDefs.emplace(GetHash(idStr), toAdd);
 
-					const ParseDefinitions::EnumDef* enumDef = dynamic_cast<ParseDefinitions::EnumDef*>(typeDef);
-					if (enumDef != nullptr)
-					{
-						PersistentVarDefinition toAdd(VarType::ENUM, idStr, enumDef);
-						targetVarDefs.emplace(GetHash(idStr), toAdd);
-						continue;
-					}
+					continue;
+				}
 
-					const ParseDefinitions::StructDef* structDef = dynamic_cast<ParseDefinitions::StructDef*>(typeDef);
-					if (structDef != nullptr)
-					{
-						GatherVariables(structDef->GetMembers(), targetVarDefs, idStr + ".", varDependentMods);
-						continue;
-					}
+				auto* typeDef = GetTypeDefinition(typeStr);
+
+				if (typeDef == nullptr)
+				{
+					spdlog::error("Var type not found: {}", typeStr);
+					continue;
+				}
+
+				const ParseDefinitions::EnumDef* enumDef = dynamic_cast<ParseDefinitions::EnumDef*>(typeDef);
+				if (enumDef != nullptr)
+				{
+					PersistentVarDefinition toAdd(VarType::ENUM, idStr, varDependentMods, enumDef);
+					targetVarDefs.emplace(GetHash(idStr), toAdd);
+					continue;
+				}
+
+				const ParseDefinitions::StructDef* structDef = dynamic_cast<ParseDefinitions::StructDef*>(typeDef);
+				if (structDef != nullptr)
+				{
+					GatherVariables(structDef->GetMembers(), targetVarDefs, idStr + ".", varDependentMods);
+					continue;
 				}
 			}
 		}

@@ -66,6 +66,10 @@ namespace ModdedPersistence
 			{
 				return m_arraySize.c_str();
 			}
+			const int GetNativeArraySize() const
+			{
+				return m_nativeArraySize;
+			}
 
 		private:
 			std::string m_type;
@@ -147,8 +151,8 @@ namespace ModdedPersistence
 	class PersistentVarDefinition
 	{
 	public:
-		PersistentVarDefinition(VarType type, std::string identifier);
-		PersistentVarDefinition(VarType type, std::string identifier, const ParseDefinitions::EnumDef* enumType);
+		PersistentVarDefinition(VarType type, std::string identifier, std::vector<std::string>& dependencies);
+		PersistentVarDefinition(VarType type, std::string identifier, std::vector<std::string>& dependencies, const ParseDefinitions::EnumDef* enumType);
 		VarType GetType() const
 		{
 			return m_type;
@@ -157,11 +161,14 @@ namespace ModdedPersistence
 		{
 			return m_identifier.c_str();
 		}
+		void SetStringSize(int size) { m_stringSize = size; }
 
 	private:
 		VarType m_type = VarType::INVALID;
 		std::string m_identifier;
 		const ParseDefinitions::EnumDef* m_enumType;
+		std::vector<std::string> m_dependencies;
+		int m_stringSize;
 
 		friend class PersistentVar;
 	};
