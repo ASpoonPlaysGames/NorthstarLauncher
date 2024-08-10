@@ -40,22 +40,56 @@ namespace ModdedPersistence
 		class VarDef
 		{
 		public:
+			VarDef(
+				const std::string& type,
+				const int nativeArraySize,
+				const std::string& identifier,
+				const std::string& arraySize,
+				const std::string& owner);
+			const std::string& ToString() const
+			{
+				return m_printableString;
+			}
+			const char* GetIdentifier() const
+			{
+				return m_identifier.c_str();
+			}
+			const char* GetOwner() const
+			{
+				return m_owner.c_str();
+			}
+			const char* GetType() const
+			{
+				return m_type.c_str();
+			}
+			const char* GetArraySize() const
+			{
+				return m_arraySize.c_str();
+			}
+
+		private:
 			std::string m_type;
-			int m_nativeArraySize; // used for strings e.g. string{16}
+			int m_nativeArraySize = -1; // used for strings e.g. string{16}
 			std::string m_identifier;
 			std::string m_arraySize; // can be either a number or an enum identifier
 
 			std::string m_owner;
+
+			std::string m_printableString;
 		};
 
 		class TypeDef
 		{
 		public:
-			const char* GetIdentifier() const { return m_identifier.c_str(); }
+			const char* GetIdentifier() const
+			{
+				return m_identifier.c_str();
+			}
 			virtual void GatherChildren(VarDef parent) {};
 
 		protected:
 			TypeDef(const char* identifier);
+
 		private:
 			const std::string m_identifier;
 		};
@@ -66,10 +100,19 @@ namespace ModdedPersistence
 		{
 		public:
 			StructDef(const char* identifier);
-			int GetMemberCount() { return m_members.size(); }
-			std::map<size_t, ParseDefinitions::VarDef>& GetMembers() { return m_members; }
+			int GetMemberCount()
+			{
+				return m_members.size();
+			}
+			std::map<size_t, ParseDefinitions::VarDef>& GetMembers()
+			{
+				return m_members;
+			}
+			const std::map<size_t, ParseDefinitions::VarDef>& GetMembers() const
+			{
+				return m_members;
+			}
 
-			void AddMember(VarDef member);
 		private:
 			std::map<size_t, ParseDefinitions::VarDef> m_members;
 		};
@@ -86,24 +129,39 @@ namespace ModdedPersistence
 		{
 		public:
 			EnumDef(const char* identifier);
-			int GetMemberCount() { return m_members.size(); }
-			int GetMemberIndex(const char* identifier);
-			const char* GetMemberName(int index);
-			const char* GetMemberOwner(int index);
+			int GetMemberCount() const
+			{
+				return m_members.size();
+			}
+			int GetMemberIndex(const char* identifier) const;
+			const char* GetMemberName(int index) const;
+			const char* GetMemberOwner(int index) const;
 			void AddMember(EnumMember member);
+
 		private:
 			std::vector<EnumMember> m_members;
 		};
-	}
+	} // namespace ParseDefinitions
 
 	// flattened variable
 	class PersistentVarDefinition
 	{
 	public:
-		PersistentVarDefinition(VarType type);
-		VarType GetType() { return m_type; }
+		PersistentVarDefinition(VarType type, std::string identifier);
+		PersistentVarDefinition(VarType type, std::string identifier, const ParseDefinitions::EnumDef* enumType);
+		VarType GetType() const
+		{
+			return m_type;
+		}
+		const char* GetIdentifier() const
+		{
+			return m_identifier.c_str();
+		}
+
 	private:
 		VarType m_type = VarType::INVALID;
+		std::string m_identifier;
+		const ParseDefinitions::EnumDef* m_enumType;
 
 		friend class PersistentVar;
 	};
@@ -113,6 +171,7 @@ namespace ModdedPersistence
 	{
 	public:
 		static PersistentVarDefinitionData* GetInstance();
+		void LogVarDefinitions();
 
 		PersistentVarDefinition* FindVarDefinition(const char* name);
 
@@ -138,14 +197,23 @@ namespace ModdedPersistence
 		// Registers a var definition, returns nullptr if a var or type with the same identifier exists
 		ParseDefinitions::VarDef* RegisterVarDefinition(ParseDefinitions::VarDef varDef);
 
-
 	private:
 		PersistentVarDefinitionData() = default;
 
-		const size_t GetHash(std::string identifier) const { return STR_HASH(identifier); }
+		const size_t GetHash(std::string identifier) const
+		{
+			return STR_HASH(identifier);
+		}
 		bool ParsePersistence(std::stringstream& stream, const char* owningModName = "");
 		bool ParseEnumMember(const std::string& line, const char* owningModName, ParseDefinitions::EnumDef& parentEnum);
 		bool ParseVarDefinition(const std::string& line, const char* owningModName, std::map<size_t, ParseDefinitions::VarDef>& targetMap);
+
+		void FlattenVariables();
+		void GatherVariables(
+			const std::map<size_t, ParseDefinitions::VarDef>& sourceVarDefs,
+			std::map<size_t, PersistentVarDefinition>& targetVarDefs,
+			std::string idPrefix,
+			std::vector<std::string> dependentMods);
 
 		bool m_finalised = false;
 		// stores the current modded pdef, reloaded on map change
@@ -156,4 +224,4 @@ namespace ModdedPersistence
 		// all currently known persistent var defs (not flattened, raw parsing)
 		std::map<size_t, ParseDefinitions::VarDef> m_vars;
 	};
-}
+} // namespace ModdedPersistence

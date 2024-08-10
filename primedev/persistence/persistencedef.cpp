@@ -13,7 +13,7 @@ int test_int\n\
 float test_float\n\
 bool test_bool\n\
 string{16} test_string\n\
-int test_array[69]\n\
+int test_array[8]\n\
 \n\
 //////////////////\n\
 // ENUM TESTING //\n\
@@ -44,6 +44,7 @@ $STRUCT_END\n\
 \n\
 // this should also have the float member\n\
 test_struct_def test_struct_instance\n\
+test_struct_def test_struct_array[3]\n\
 \n\
 // defining the same struct twice also concatenates them, but they cannot contain duplicate members\n\
 $STRUCT_START test_struct_def\n\
@@ -51,9 +52,8 @@ $STRUCT_START test_struct_def\n\
 $STRUCT_END\n\
 ";
 
-	const char* VALID_IDENTIFIER_CHARS = "aAbBcCdDeEfFgGhHiIjJkKlLmMnNoOpPqQrRsStTuUvVwWxXyYzZ0123456789_";
-
-	#define ID_RGX "[a-zA-Z0-9_]+"
+	const char* ID_CHARS = "aAbBcCdDeEfFgGhHiIjJkKlLmMnNoOpPqQrRsStTuUvVwWxXyYzZ0123456789_";
+#define ID_RGX "[a-zA-Z_][a-zA-Z0-9_]*" // first character must be a non-digit
 
 	// trims leading whitespace, comments, and trailing whitespace before comments
 	const std::regex LINE_TRIM_RGX("^\\s*(.*?)\\s*(?:\\/\\/.*)?$");
@@ -65,13 +65,30 @@ $STRUCT_END\n\
 
 	namespace ParseDefinitions
 	{
+		VarDef::VarDef(
+			const std::string& type,
+			const int nativeArraySize,
+			const std::string& identifier,
+			const std::string& arraySize,
+			const std::string& owner)
+			: m_type(type), m_nativeArraySize(nativeArraySize), m_identifier(identifier), m_arraySize(arraySize), m_owner(owner)
+		{
+			m_printableString = type;
+			if (nativeArraySize > 0)
+				m_printableString.append(std::format("{{{}}}", nativeArraySize));
+			m_printableString.append(std::format(" {}", identifier));
+			if (!arraySize.empty())
+				m_printableString.append(std::format("[{}]", arraySize));
+			m_printableString.append(std::format(" ({})", owner.empty() ? "Vanilla" : owner));
+		}
+
 		TypeDef::TypeDef(const char* identifier) : m_identifier(identifier) {}
 
 		StructDef::StructDef(const char* identifier) : TypeDef(identifier) {}
 
 		EnumDef::EnumDef(const char* identifier) : TypeDef(identifier) {}
 
-		int EnumDef::GetMemberIndex(const char* identifier)
+		int EnumDef::GetMemberIndex(const char* identifier) const
 		{
 			for (int i = 0; i < m_members.size(); ++i)
 			{
@@ -82,14 +99,14 @@ $STRUCT_END\n\
 			return -1;
 		}
 
-		const char* EnumDef::GetMemberName(int index)
+		const char* EnumDef::GetMemberName(int index) const
 		{
 			assert_msg(index < m_members.size(), "EnumDef::GetMemberName | Index out of bounds");
 
 			return m_members[index].identifier.c_str();
 		}
 
-		const char* EnumDef::GetMemberOwner(int index)
+		const char* EnumDef::GetMemberOwner(int index) const
 		{
 			assert_msg(index < m_members.size(), "EnumDef::GetMemberOwner | Index out of bounds");
 
@@ -110,9 +127,11 @@ $STRUCT_END\n\
 		}
 	} // namespace ParseDefinitions
 
-	PersistentVarDefinition::PersistentVarDefinition(VarType type)
+	PersistentVarDefinition::PersistentVarDefinition(VarType type, std::string identifier) : m_type(type), m_identifier(identifier) {}
+
+	PersistentVarDefinition::PersistentVarDefinition(VarType type, std::string identifier, const ParseDefinitions::EnumDef* enumType)
+		: m_type(type), m_identifier(identifier), m_enumType(enumType)
 	{
-		m_type = type;
 	}
 
 	PersistentVarDefinitionData* PersistentVarDefinitionData::GetInstance()
@@ -121,8 +140,6 @@ $STRUCT_END\n\
 		if (instance == nullptr)
 		{
 			instance = new PersistentVarDefinitionData();
-			// todo: remove test data
-			instance->m_persistentVarDefs.emplace(STR_HASH("test_thing"), PersistentVarDefinition(VarType::INT));
 
 			// todo: remove hardcoded file
 			std::stringstream stream(TEST_PDIFF_STRING);
@@ -131,6 +148,49 @@ $STRUCT_END\n\
 		}
 
 		return instance;
+	}
+
+	void PersistentVarDefinitionData::LogVarDefinitions()
+	{
+		spdlog::info("\n\n");
+		spdlog::info("LOGGING RAW VAR DEFINITIONS");
+		spdlog::info("\n\n");
+		spdlog::info("ENUMS:");
+		for (auto& it : m_types)
+		{
+			auto* enumDef = dynamic_cast<ParseDefinitions::EnumDef*>(it.second.get());
+			if (enumDef == nullptr)
+				continue;
+
+			spdlog::info("{}", enumDef->GetIdentifier());
+			int memberCount = enumDef->GetMemberCount();
+			for (int i = 0; i < memberCount; ++i)
+			{
+				spdlog::info("\t{} ({})", enumDef->GetMemberName(i), enumDef->GetMemberOwner(i));
+			}
+			spdlog::info("");
+		}
+		spdlog::info("STRUCTS:");
+		for (auto& it : m_types)
+		{
+			auto* structDef = dynamic_cast<ParseDefinitions::StructDef*>(it.second.get());
+			if (structDef == nullptr)
+				continue;
+
+			spdlog::info("{}", structDef->GetIdentifier());
+
+			for (auto& [hash, member] : structDef->GetMembers())
+			{
+				spdlog::info("\t{}", member.ToString());
+			}
+			spdlog::info("");
+		}
+		spdlog::info("VARS:");
+		for (auto& [hash, var] : m_vars)
+		{
+			spdlog::info("{}", var.ToString());
+		}
+		spdlog::info("\n\n");
 	}
 
 	PersistentVarDefinition* PersistentVarDefinitionData::FindVarDefinition(const char* name)
@@ -154,48 +214,21 @@ $STRUCT_END\n\
 
 	void PersistentVarDefinitionData::Finalise()
 	{
-		// temp: logging all of the members
-		spdlog::info("\n\n");
-		spdlog::info("ENUMS:");
-		for (auto& it : m_types)
-		{
-			auto* enumDef = dynamic_cast<ParseDefinitions::EnumDef*>(it.second.get());
-			if (enumDef == nullptr)
-				continue;
-
-			spdlog::info("{}", enumDef->GetIdentifier());
-			int memberCount = enumDef->GetMemberCount();
-			for (int i = 0; i < memberCount; ++i)
-			{
-				spdlog::info("\t{} ({})", enumDef->GetMemberName(i), enumDef->GetMemberOwner(i));
-			}
-			spdlog::info("");
-		}
-		spdlog::info("\n\n");
-		spdlog::info("STRUCTS:");
-		for (auto& it : m_types)
-		{
-			auto* structDef = dynamic_cast<ParseDefinitions::StructDef*>(it.second.get());
-			if (structDef == nullptr)
-				continue;
-
-			spdlog::info("{}", structDef->GetIdentifier());
-
-			for (auto& [hash, member] : structDef->GetMembers())
-			{
-				spdlog::info("\t{}{{{}}} {}[{}] ({})", member.m_type, member.m_nativeArraySize, member.m_identifier, member.m_arraySize, member.m_owner);
-			}
-			spdlog::info("");
-		}
-		spdlog::info("\n\n");
-		spdlog::info("VARS:");
-		for (auto& [hash, var] : m_vars)
-		{
-			spdlog::info("{}{{{}}} {}[{}] ({})", var.m_type, var.m_nativeArraySize, var.m_identifier, var.m_arraySize, var.m_owner);
-		}
-		spdlog::info("\n\n");
+		LogVarDefinitions();
 
 		// flatten variables and populate m_persistentVarDefs
+
+		FlattenVariables();
+
+		spdlog::warn("\n\n");
+		spdlog::warn("PRINTING FLATTENED:");
+
+		for (auto& [hash, var] : m_persistentVarDefs)
+		{
+			spdlog::warn(var.GetIdentifier());
+		}
+
+		spdlog::warn("\n\n");
 
 		m_finalised = true;
 	}
@@ -203,13 +236,15 @@ $STRUCT_END\n\
 	void PersistentVarDefinitionData::Clear()
 	{
 		m_persistentVarDefs.clear();
+		m_vars.clear();
+		m_types.clear();
 		// todo: clear persistent data as well since that will point to garbage now
 		m_finalised = false;
 	}
 
 	ParseDefinitions::TypeDef* PersistentVarDefinitionData::GetTypeDefinition(const char* identifier)
 	{
-		const size_t idHash = STR_HASH(identifier);
+		const size_t idHash = GetHash(identifier);
 
 		auto it = m_types.find(idHash);
 		return it != m_types.end() ? it->second.get() : nullptr;
@@ -218,7 +253,7 @@ $STRUCT_END\n\
 	ParseDefinitions::TypeDef* PersistentVarDefinitionData::RegisterTypeDefinition(std::shared_ptr<ParseDefinitions::TypeDef> typeDef)
 	{
 		const char* identifier = typeDef->GetIdentifier();
-		const size_t idHash = STR_HASH(identifier);
+		const size_t idHash = GetHash(identifier);
 
 		// ensure that the identifier isn't already in use
 		if (m_vars.find(idHash) != m_vars.end())
@@ -237,7 +272,7 @@ $STRUCT_END\n\
 
 	ParseDefinitions::VarDef* PersistentVarDefinitionData::GetVarDefinition(const char* identifier)
 	{
-		const size_t idHash = STR_HASH(identifier);
+		const size_t idHash = GetHash(identifier);
 
 		auto it = m_vars.find(idHash);
 		return it != m_vars.end() ? &it->second : nullptr;
@@ -245,8 +280,8 @@ $STRUCT_END\n\
 
 	ParseDefinitions::VarDef* PersistentVarDefinitionData::RegisterVarDefinition(ParseDefinitions::VarDef varDef)
 	{
-		const char* identifier = varDef.m_identifier.c_str();
-		const size_t idHash = STR_HASH(identifier);
+		const char* identifier = varDef.GetIdentifier();
+		const size_t idHash = GetHash(identifier);
 
 		// ensure that the identifier isn't already in use
 		if (m_vars.find(idHash) != m_vars.end())
@@ -317,21 +352,23 @@ $STRUCT_END\n\
 					ParseDefinitions::TypeDef* typeDef = GetTypeDefinition(commandMatches[1].str().c_str());
 					if (typeDef == nullptr)
 					{
-						auto newEnumDef = std::make_shared<ParseDefinitions::EnumDef>(ParseDefinitions::EnumDef(commandMatches[1].str().c_str()));
+						auto newEnumDef =
+							std::make_shared<ParseDefinitions::EnumDef>(ParseDefinitions::EnumDef(commandMatches[1].str().c_str()));
 						typeDef = RegisterTypeDefinition(newEnumDef);
 					}
 
 					auto* foundEnumDef = dynamic_cast<ParseDefinitions::EnumDef*>(typeDef);
 					if (foundEnumDef == nullptr)
 					{
-						spdlog::error("Invalid enum identifier: '{}' ({}) is already defined as a struct", commandMatches[1].str(), owningModName);
+						spdlog::error(
+							"Invalid enum identifier: '{}' ({}) is already defined as a struct", commandMatches[1].str(), owningModName);
 						return false;
 					}
 
 					// set currentEnum
 					currentEnum = foundEnumDef;
 				}
-				else if(std::regex_match(trimmedLine, commandMatches, ENUM_END_RGX))
+				else if (std::regex_match(trimmedLine, commandMatches, ENUM_END_RGX))
 				{
 					if (currentEnum == nullptr || currentStruct != nullptr)
 					{
@@ -341,7 +378,7 @@ $STRUCT_END\n\
 
 					currentEnum = nullptr;
 				}
-				else if(std::regex_match(trimmedLine, commandMatches, STRUCT_START_RGX))
+				else if (std::regex_match(trimmedLine, commandMatches, STRUCT_START_RGX))
 				{
 					if (currentEnum != nullptr || currentStruct != nullptr)
 					{
@@ -354,21 +391,23 @@ $STRUCT_END\n\
 					ParseDefinitions::TypeDef* typeDef = GetTypeDefinition(commandMatches[1].str().c_str());
 					if (typeDef == nullptr)
 					{
-						auto newStructDef = std::make_shared<ParseDefinitions::StructDef>(ParseDefinitions::StructDef(commandMatches[1].str().c_str()));
+						auto newStructDef =
+							std::make_shared<ParseDefinitions::StructDef>(ParseDefinitions::StructDef(commandMatches[1].str().c_str()));
 						typeDef = RegisterTypeDefinition(newStructDef);
 					}
 
 					auto* foundStructDef = dynamic_cast<ParseDefinitions::StructDef*>(typeDef);
 					if (foundStructDef == nullptr)
 					{
-						spdlog::error("Invalid struct identifier: '{}' ({}) is already defined as an enum", commandMatches[1].str(), owningModName);
+						spdlog::error(
+							"Invalid struct identifier: '{}' ({}) is already defined as an enum", commandMatches[1].str(), owningModName);
 						return false;
 					}
 
 					// set currentEnum
 					currentStruct = foundStructDef;
 				}
-				else if(std::regex_match(trimmedLine, commandMatches, STRUCT_END_RGX))
+				else if (std::regex_match(trimmedLine, commandMatches, STRUCT_END_RGX))
 				{
 					if (currentEnum != nullptr || currentStruct == nullptr)
 					{
@@ -407,9 +446,10 @@ $STRUCT_END\n\
 		return true;
 	}
 
-	bool PersistentVarDefinitionData::ParseEnumMember(const std::string& line, const char* owningModName, ParseDefinitions::EnumDef& parentEnum)
+	bool
+	PersistentVarDefinitionData::ParseEnumMember(const std::string& line, const char* owningModName, ParseDefinitions::EnumDef& parentEnum)
 	{
-		const size_t firstInvalid = line.find_first_not_of(VALID_IDENTIFIER_CHARS);
+		const size_t firstInvalid = line.find_first_not_of(ID_CHARS);
 		if (firstInvalid != std::string::npos)
 		{
 			spdlog::error("Invalid character {} in enum member '{}'", line[firstInvalid], line);
@@ -431,7 +471,8 @@ $STRUCT_END\n\
 		return true;
 	}
 
-	bool PersistentVarDefinitionData::ParseVarDefinition(const std::string& line, const char* owningModName, std::map<size_t, ParseDefinitions::VarDef>& targetMap)
+	bool PersistentVarDefinitionData::ParseVarDefinition(
+		const std::string& line, const char* owningModName, std::map<size_t, ParseDefinitions::VarDef>& targetMap)
 	{
 		std::smatch matches;
 		if (!std::regex_search(line, matches, VAR_DEF_RGX))
@@ -457,25 +498,137 @@ $STRUCT_END\n\
 		const std::string identifier = matches[3];
 		const std::string arraySize = matches[4];
 
-		ParseDefinitions::VarDef varDef;
-		varDef.m_type = type;
+		int nativeArraySizeInt = 0;
 		if (!nativeArraySize.empty())
-			varDef.m_nativeArraySize = std::stoi(nativeArraySize);
-		else
-			varDef.m_nativeArraySize = 1;
-		varDef.m_identifier = identifier;
-		varDef.m_arraySize = arraySize;
-		varDef.m_owner = owningModName;
+			nativeArraySizeInt = std::stoi(nativeArraySize);
+
+		ParseDefinitions::VarDef varDef(type, nativeArraySizeInt, identifier, arraySize, owningModName);
 
 		auto [foundVarDef, emplaceSuccess] = targetMap.emplace(GetHash(identifier), varDef);
 		if (!emplaceSuccess)
 		{
-			spdlog::error("Var name collision: '{}' already defined in {}", identifier, foundVarDef->second.m_owner);
+			spdlog::error("Var name collision: '{}' already defined in {}", identifier, foundVarDef->second.GetOwner());
 			spdlog::error(line);
 			return false;
 		}
 
 		return true;
+	}
+
+	void PersistentVarDefinitionData::FlattenVariables()
+	{
+		GatherVariables(m_vars, m_persistentVarDefs, "", {});
+	}
+
+	void PersistentVarDefinitionData::GatherVariables(
+		const std::map<size_t, ParseDefinitions::VarDef>& sourceVarDefs,
+		std::map<size_t, PersistentVarDefinition>& targetVarDefs,
+		std::string idPrefix,
+		std::vector<std::string> dependentMods)
+	{
+		for (auto& [idHash, varDef] : sourceVarDefs)
+		{
+			std::string varDefIdStr = std::format("{}{}", idPrefix, varDef.GetIdentifier());
+			std::vector<std::string> varDependentMods = dependentMods;
+			if (varDef.GetOwner() == "") // no mod owner, vanilla def
+				varDependentMods.push_back(varDef.GetOwner());
+
+			// find array size
+			bool useArraySuffix = false;
+			std::vector<std::string> arrayMembers;
+			std::string arraySize = varDef.GetArraySize();
+			if (arraySize.empty())
+			{
+				arrayMembers = {"0"};
+			}
+			else if (auto* typeDef = GetTypeDefinition(arraySize.c_str()); typeDef != nullptr)
+			{
+				// found type, make sure its en enum
+				const ParseDefinitions::EnumDef* enumDef = dynamic_cast<ParseDefinitions::EnumDef*>(typeDef);
+				if (enumDef == nullptr)
+				{
+					spdlog::error("Invalid array size '{}' for variable '{}' ({})", arraySize, varDefIdStr, varDef.GetOwner());
+					spdlog::error(varDef.ToString());
+					continue;
+				}
+
+				// add each enum member to array member strings
+				const int memberCount = enumDef->GetMemberCount();
+				for (int i = 0; i < memberCount; ++i)
+					arrayMembers.push_back(enumDef->GetMemberName(i));
+
+				useArraySuffix = true;
+			}
+			else if (arraySize.find_first_not_of("0123456789") == std::string::npos)
+			{
+				// found number, construct array member strings
+				const int arraySizeInt = std::stoi(arraySize);
+				for (int i = 0; i < arraySizeInt; ++i)
+					arrayMembers.push_back(std::to_string(i));
+
+				useArraySuffix = true;
+			}
+
+			// loop over array members
+			for (auto& arrayMember : arrayMembers)
+			{
+				const char* typeStr = varDef.GetType();
+				std::string idStr = varDefIdStr;
+				if (useArraySuffix)
+					idStr.append(std::format("[{}]", arrayMember));
+
+				// no switch on string in C++ :(
+				if (!strcmp(typeStr, "bool"))
+				{
+					PersistentVarDefinition toAdd(VarType::BOOL, idStr);
+					targetVarDefs.emplace(GetHash(idStr), toAdd);
+					continue;
+				}
+				else if (!strcmp(typeStr, "int"))
+				{
+					PersistentVarDefinition toAdd(VarType::INT, idStr);
+					targetVarDefs.emplace(GetHash(idStr), toAdd);
+					continue;
+				}
+				else if (!strcmp(typeStr, "float"))
+				{
+					PersistentVarDefinition toAdd(VarType::FLOAT, idStr);
+					targetVarDefs.emplace(GetHash(idStr), toAdd);
+					continue;
+				}
+				else if (!strcmp(typeStr, "string"))
+				{
+					PersistentVarDefinition toAdd(VarType::STRING, idStr);
+					targetVarDefs.emplace(GetHash(idStr), toAdd);
+					continue;
+				}
+				else
+				{
+					auto* typeDef = GetTypeDefinition(typeStr);
+
+					if (typeDef == nullptr)
+					{
+						spdlog::error("Var type not found: {}", typeStr);
+						continue;
+					}
+
+					const ParseDefinitions::EnumDef* enumDef = dynamic_cast<ParseDefinitions::EnumDef*>(typeDef);
+					if (enumDef != nullptr)
+					{
+						PersistentVarDefinition toAdd(VarType::ENUM, idStr, enumDef);
+						targetVarDefs.emplace(GetHash(idStr), toAdd);
+						continue;
+					}
+
+					const ParseDefinitions::StructDef* structDef = dynamic_cast<ParseDefinitions::StructDef*>(typeDef);
+					if (structDef != nullptr)
+					{
+						GatherVariables(structDef->GetMembers(), targetVarDefs, idStr + ".", varDependentMods);
+						continue;
+					}
+				}
+			}
+		}
 	}
 
 } // namespace ModdedPersistence
