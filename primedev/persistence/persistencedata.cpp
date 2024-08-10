@@ -13,12 +13,10 @@ namespace ModdedPersistence
 		switch (m_definition->m_type)
 		{
 		case VarType::INT:
+		case VarType::ENUM:
 			return std::get<int>(m_value);
 		case VarType::BOOL:
 			return static_cast<int>(std::get<bool>(m_value));
-		case VarType::ENUM:
-			// todo: returns index into enum
-			return -1;
 		case VarType::FLOAT:
 		case VarType::STRING:
 		case VarType::INVALID:

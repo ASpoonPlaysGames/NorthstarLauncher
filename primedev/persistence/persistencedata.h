@@ -7,14 +7,8 @@
 
 namespace ModdedPersistence
 {
-	// todo: is this needed? evaluate how slow is it to get the string from the index for enums
-	struct PersistentEnumValue
-	{
-		int valueInt;
-		std::string valueString;
-	};
-
-	using PersistentVarTypeVariant = std::variant<bool, int, float, PersistentEnumValue, std::string>;
+	// enums use int
+	using PersistentVarTypeVariant = std::variant<bool, int, float, std::string>;
 
 	// defines a fully-formed persistent datum for a player along with an interface for accessing
 	// the datum and pushing to the sqvm

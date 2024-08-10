@@ -146,6 +146,8 @@ void ServerAuthenticationManager::AuthenticatePlayer(CBaseClient* pPlayer, uint6
 		{
 			// copy pdata into buffer
 			memcpy(pPlayer->m_PersistenceBuffer, authData->second.pdata, authData->second.pdataSize);
+
+			// todo: copy modded pdata into buffer
 		}
 
 		// set persistent data as ready
@@ -193,6 +195,7 @@ void ServerAuthenticationManager::WritePersistentData(CBaseClient* pPlayer)
 	{
 		g_pMasterServerManager->WritePlayerPersistentData(
 			pPlayer->m_UID, (const char*)pPlayer->m_PersistenceBuffer, m_PlayerAuthenticationData[pPlayer].pdataSize);
+		// todo: write modded persistent data
 	}
 	else if (Cvar_ns_auth_allow_insecure_write->GetBool())
 	{
@@ -320,6 +323,7 @@ void,, (CBaseClient* self, uint32_t unknownButAlways1, const char* pReason, ...)
 			g_pServerAuthentication->WritePersistentData(self);
 
 		memset(self->m_PersistenceBuffer, 0, g_pServerAuthentication->m_PlayerAuthenticationData[self].pdataSize);
+		// todo: wipe modded persistence
 		g_pServerAuthentication->RemovePlayerAuthData(self); // won't do anything 99% of the time, but just in case
 
 		g_pServerAuthentication->RemovePlayer(self);
