@@ -2,6 +2,112 @@
 
 namespace ModdedPersistence
 {
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+	int PersistenceDataInstance::GetDependencyIndex(const char* dependency)
+	{
+		const int originalSize = static_cast<int>(m_dependencies.size());
+
+		for (int i = 0; i < originalSize; ++i)
+		{
+			if (m_dependencies[i] == dependency)
+				return i;
+		}
+
+		m_dependencies.push_back(dependency);
+		return originalSize;
+	}
+
+	bool PersistenceDataInstance::FromStream(std::istream stream)
+	{
+		PersistenceDataHeader header {};
+		stream.read(reinterpret_cast<char*>(&header), sizeof(header));
+
+		if (header.version != 1)
+		{
+			spdlog::error("Invalid nspdata version {} (expected 1)", header.version);
+			return false;
+		}
+
+		if (reinterpret_cast<int>(header.magic) != reinterpret_cast<int>(NSPDATA_MAGIC))
+		{
+			spdlog::error("Invalid nspdata file magic?");
+			return false;
+		}
+
+		// read dependencies
+
+		// read variables
+
+		// read groups
+
+		// read identifiers
+
+		return true;
+	}
+
+	bool PersistenceDataInstance::ToStream(std::ostream& stream)
+	{
+		// sort out any changes that we made to the data before writing it
+		CommitChanges();
+
+		auto startPos = stream.tellp();
+
+		PersistenceDataHeader header {};
+		header.version = 1;
+		memcpy(&header.magic, NSPDATA_MAGIC, 4);
+		// write dummy header to the stream
+		stream.write(reinterpret_cast<char*>(&header), sizeof(header));
+
+		// write dependencies
+		header.dependencyCount = m_dependencies.size();
+		header.dependenciesOffset = stream.tellp() - startPos;
+		for (auto& dependency : m_dependencies)
+			stream.write(dependency.c_str(), dependency.size());
+
+		// write variables
+		header.variableCount = m_variables.size();
+		header.variablesOffset = stream.tellp() - startPos;
+		for (auto& variable : m_variables)
+			if (!variable.ToStream(stream))
+				return false;
+
+		// write groups
+		header.groupCount = m_groups.size();
+		header.groupsOffset = stream.tellp() - startPos;
+		for (auto& group : m_groups)
+			if (!group.ToStream(stream))
+				return false;
+
+		// write identifiers
+		header.identifiersCount = m_identifiers.size();
+		header.identifiersOffset = stream.tellp() - startPos;
+		for (auto& identifier : m_identifiers)
+			stream.write(identifier.c_str(), identifier.size());
+
+		// go back to the start and write the populated header back
+		auto curPos = stream.tellp();
+		stream.seekp(startPos);
+		stream.write(reinterpret_cast<char*>(&header), sizeof(header));
+		stream.seekp(curPos);
+
+		return true;
+	}
+
+
 	//PersistentVar::PersistentVar(PersistentVarDefinition* def, PersistentVarTypeVariant val)
 	//{
 	//	m_definition = def;

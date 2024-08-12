@@ -9,7 +9,9 @@ namespace ModdedPersistence
 {
 	// enums use int
 	using PersistentVarTypeVariant = std::variant<bool, int, float, std::string>;
+	constexpr char NSPDATA_MAGIC[4] = {'N', 'S', 'P', 'D'};
 
+#pragma pack(push, 1)
 	struct PersistenceDataHeader
 	{
 		unsigned int version; // I don't really see this changing, but it's there i guess
@@ -24,6 +26,7 @@ namespace ModdedPersistence
 		unsigned int identifiersOffset;
 		unsigned int identifiersCount;
 	};
+#pragma pack(pop)
 
 	class PersistencePossibility
 	{
@@ -35,9 +38,10 @@ namespace ModdedPersistence
 	{
 	public:
 		bool FromStream(std::istream stream);
-		bool ToStream(std::ostream stream);
+		bool ToStream(std::ostream& stream);
 
 		std::vector<bool> GetDependencies() override;
+
 	private:
 		// mod dependency for enum value vars
 		int m_dependency;
@@ -52,14 +56,16 @@ namespace ModdedPersistence
 	{
 	public:
 		bool FromStream(std::istream stream);
-		bool ToStream(std::ostream stream);
+		bool ToStream(std::ostream& stream);
 
 		// adds a possibility, or replaces one if they have matching dependencies
 		void AddPossibility(PersistentVariablePossibility& possibility);
 		// selects the best possibility based on the enabled dependencies
 		// note: prefers the "most specific" possibility (the one with the most dependencies)
 		PersistentVariablePossibility& SelectPossibility();
+
 	private:
+		// should be a reference to a member of m_identifiers in PersistenceDataInstance
 		std::string& m_identifier;
 		std::vector<PersistentVariablePossibility> m_possibilities;
 
@@ -73,9 +79,10 @@ namespace ModdedPersistence
 	{
 	public:
 		bool FromStream(std::istream stream);
-		bool ToStream(std::ostream stream);
+		bool ToStream(std::ostream& stream);
 
 		std::vector<bool> GetDependencies() override;
+
 	private:
 		std::vector<PersistentVariablePossibility> m_members;
 
@@ -86,15 +93,17 @@ namespace ModdedPersistence
 	{
 	public:
 		bool FromStream(std::istream stream);
-		bool ToStream(std::ostream stream);
+		bool ToStream(std::ostream& stream);
 
 		// adds a possibility, or replaces one if they have matching dependencies
 		void AddPossibility(PersistentGroupPossibility& possibility);
 		// selects the best possibility based on the enabled dependencies
 		// note: prefers the "most specific" possibility (the one with the most dependencies)
 		PersistentGroupPossibility& SelectPossibility();
+
 	private:
 		// identifier of the instance, not the type identifier
+		// should be a reference to a member of m_identifiers in PersistenceDataInstance
 		std::string& m_identifier;
 		std::vector<PersistentGroupPossibility> m_possibilities;
 
@@ -105,11 +114,11 @@ namespace ModdedPersistence
 	class PersistenceDataInstance
 	{
 	public:
-		// Gets the index of a mod dependency, adding to m_dependencies if it didn't already exist
+		// Gets the index of a mod dependency, adding it if it didn't exist
 		int GetDependencyIndex(const char* dependency);
 
 		bool FromStream(std::istream stream);
-		bool ToStream(std::ostream stream);
+		bool ToStream(std::ostream& stream);
 
 		// Uses the enabled mod names to select persistent variables
 		void Finalise(std::vector<std::string> loadedModNames);
@@ -130,20 +139,19 @@ namespace ModdedPersistence
 		std::vector<bool> m_enabledDependencies;
 	};
 
-
 	// defines a fully-formed persistent datum for a player along with an interface for accessing
 	// the datum and pushing to the sqvm
-	//class PersistentVar
+	// class PersistentVar
 	//{
-	//public:
+	// public:
 	//	PersistentVar(PersistentVarDefinition* def, PersistentVarTypeVariant val);
 	//	VarType GetType() { return m_definition->m_type; }
 	//	int GetAsInteger();
 
-	//private:
+	// private:
 	//	PersistentVarTypeVariant m_value;
 	//	PersistentVarDefinition* m_definition;
-	//};
+	// };
 
 	// interface for getting and setting persistent variables
 	class PersistentVarData
@@ -152,8 +160,8 @@ namespace ModdedPersistence
 		static PersistentVarData* GetInstance();
 
 		// todo: delete
-		//PersistentVar& GetVar(void* player, const char* name);
-		bool PersistenceAvailable(void* player);
+		// PersistentVar& GetVar(void* player, const char* name);
+		// bool PersistenceAvailable(void* player);
 
 		// loads persistence for the given player
 		bool Load(void* player, void* data);
@@ -165,9 +173,9 @@ namespace ModdedPersistence
 	private:
 		PersistentVarData() = default;
 
-		//std::map<void*, std::map<size_t, PersistentVar>> m_persistentVars;
+		// std::map<void*, std::map<size_t, PersistentVar>> m_persistentVars;
 
 		// key being something related to the client, todo
 		std::unordered_map<void*, std::shared_ptr<PersistenceDataInstance>> m_persistenceData;
 	};
-}
+} // namespace ModdedPersistence
