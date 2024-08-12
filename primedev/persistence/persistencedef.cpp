@@ -254,7 +254,7 @@ $STRUCT_END\n\
 
 	ParseDefinitions::TypeDef* PersistentVarDefinitionData::GetTypeDefinition(const char* identifier)
 	{
-		const size_t idHash = GetHash(identifier);
+		const size_t idHash = STR_HASH(identifier);
 
 		auto it = m_types.find(idHash);
 		return it != m_types.end() ? it->second.get() : nullptr;
@@ -263,7 +263,7 @@ $STRUCT_END\n\
 	ParseDefinitions::TypeDef* PersistentVarDefinitionData::RegisterTypeDefinition(std::shared_ptr<ParseDefinitions::TypeDef> typeDef)
 	{
 		const char* identifier = typeDef->GetIdentifier();
-		const size_t idHash = GetHash(identifier);
+		const size_t idHash = STR_HASH(identifier);
 
 		// ensure that the identifier isn't already in use
 		if (m_vars.find(idHash) != m_vars.end())
@@ -282,7 +282,7 @@ $STRUCT_END\n\
 
 	ParseDefinitions::VarDef* PersistentVarDefinitionData::GetVarDefinition(const char* identifier)
 	{
-		const size_t idHash = GetHash(identifier);
+		const size_t idHash = STR_HASH(identifier);
 
 		auto it = m_vars.find(idHash);
 		return it != m_vars.end() ? &it->second : nullptr;
@@ -291,7 +291,7 @@ $STRUCT_END\n\
 	ParseDefinitions::VarDef* PersistentVarDefinitionData::RegisterVarDefinition(ParseDefinitions::VarDef varDef)
 	{
 		const char* identifier = varDef.GetIdentifier();
-		const size_t idHash = GetHash(identifier);
+		const size_t idHash = STR_HASH(identifier);
 
 		// ensure that the identifier isn't already in use
 		if (m_vars.find(idHash) != m_vars.end())
@@ -514,7 +514,7 @@ $STRUCT_END\n\
 
 		ParseDefinitions::VarDef varDef(type, nativeArraySizeInt, identifier, arraySize, owningModName);
 
-		auto [foundVarDef, emplaceSuccess] = targetMap.emplace(GetHash(identifier), varDef);
+		auto [foundVarDef, emplaceSuccess] = targetMap.emplace(STR_HASH(identifier), varDef);
 		if (!emplaceSuccess)
 		{
 			spdlog::error("Var name collision: '{}' already defined in {}", identifier, foundVarDef->second.GetOwner());
@@ -593,25 +593,25 @@ $STRUCT_END\n\
 				if (!strcmp(typeStr, "bool"))
 				{
 					PersistentVarDefinition toAdd(VarType::BOOL, idStr, varDependentMods);
-					targetVarDefs.emplace(GetHash(idStr), toAdd);
+					targetVarDefs.emplace(STR_HASH(idStr), toAdd);
 					continue;
 				}
 				else if (!strcmp(typeStr, "int"))
 				{
 					PersistentVarDefinition toAdd(VarType::INT, idStr, varDependentMods);
-					targetVarDefs.emplace(GetHash(idStr), toAdd);
+					targetVarDefs.emplace(STR_HASH(idStr), toAdd);
 					continue;
 				}
 				else if (!strcmp(typeStr, "float"))
 				{
 					PersistentVarDefinition toAdd(VarType::FLOAT, idStr, varDependentMods);
-					targetVarDefs.emplace(GetHash(idStr), toAdd);
+					targetVarDefs.emplace(STR_HASH(idStr), toAdd);
 					continue;
 				}
 				else if (!strcmp(typeStr, "string"))
 				{
 					PersistentVarDefinition toAdd(VarType::STRING, idStr, varDependentMods);
-					targetVarDefs.emplace(GetHash(idStr), toAdd);
+					targetVarDefs.emplace(STR_HASH(idStr), toAdd);
 					continue;
 				}
 
@@ -621,7 +621,7 @@ $STRUCT_END\n\
 					if (targetType == VarType::STRING)
 						toAdd.SetStringSize(varDef.GetNativeArraySize());
 
-					targetVarDefs.emplace(GetHash(idStr), toAdd);
+					targetVarDefs.emplace(STR_HASH(idStr), toAdd);
 
 					continue;
 				}
@@ -638,7 +638,7 @@ $STRUCT_END\n\
 				if (enumDef != nullptr)
 				{
 					PersistentVarDefinition toAdd(VarType::ENUM, idStr, varDependentMods, enumDef);
-					targetVarDefs.emplace(GetHash(idStr), toAdd);
+					targetVarDefs.emplace(STR_HASH(idStr), toAdd);
 					continue;
 				}
 

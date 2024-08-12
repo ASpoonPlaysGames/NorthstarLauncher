@@ -207,10 +207,6 @@ namespace ModdedPersistence
 	private:
 		PersistentVarDefinitionData() = default;
 
-		const size_t GetHash(std::string identifier) const
-		{
-			return STR_HASH(identifier);
-		}
 		bool ParsePersistence(std::stringstream& stream, const char* owningModName = "");
 		bool ParseEnumMember(const std::string& line, const char* owningModName, ParseDefinitions::EnumDef& parentEnum);
 		bool ParseVarDefinition(const std::string& line, const char* owningModName, std::map<size_t, ParseDefinitions::VarDef>& targetMap);
