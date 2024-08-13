@@ -37,7 +37,7 @@ namespace ModdedPersistence
 	class PersistentVariablePossibility : public PersistencePossibility
 	{
 	public:
-		bool FromStream(std::istream stream);
+		static bool FromStream(std::istream& stream, PersistentVariablePossibility& out);
 		bool ToStream(std::ostream& stream);
 
 		std::vector<bool> GetDependencies() override;
@@ -55,7 +55,7 @@ namespace ModdedPersistence
 	class PersistentVariable
 	{
 	public:
-		bool FromStream(std::istream stream);
+		static bool FromStream(std::istream& stream, PersistentVariable& out);
 		bool ToStream(std::ostream& stream);
 
 		// adds a possibility, or replaces one if they have matching dependencies
@@ -78,7 +78,7 @@ namespace ModdedPersistence
 	class PersistentGroupPossibility : public PersistencePossibility
 	{
 	public:
-		bool FromStream(std::istream stream);
+		static bool FromStream(std::istream& stream, PersistentGroupPossibility& out);
 		bool ToStream(std::ostream& stream);
 
 		std::vector<bool> GetDependencies() override;
@@ -92,7 +92,7 @@ namespace ModdedPersistence
 	class PersistentGroup
 	{
 	public:
-		bool FromStream(std::istream stream);
+		static bool FromStream(std::istream& stream, PersistentGroup& out);
 		bool ToStream(std::ostream& stream);
 
 		// adds a possibility, or replaces one if they have matching dependencies
@@ -117,7 +117,7 @@ namespace ModdedPersistence
 		// Gets the index of a mod dependency, adding it if it didn't exist
 		int GetDependencyIndex(const char* dependency);
 
-		bool FromStream(std::istream stream);
+		static bool FromStream(std::istream& stream, PersistenceDataInstance& out);
 		bool ToStream(std::ostream& stream);
 
 		// Uses the enabled mod names to select persistent variables

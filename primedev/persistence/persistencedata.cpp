@@ -31,8 +31,11 @@ namespace ModdedPersistence
 		return originalSize;
 	}
 
-	bool PersistenceDataInstance::FromStream(std::istream stream)
+	bool PersistenceDataInstance::FromStream(std::istream& stream, PersistenceDataInstance& out)
 	{
+		out = PersistenceDataInstance();
+		auto startPos = stream.tellg();
+
 		PersistenceDataHeader header {};
 		stream.read(reinterpret_cast<char*>(&header), sizeof(header));
 
@@ -49,12 +52,35 @@ namespace ModdedPersistence
 		}
 
 		// read dependencies
+		// todo: one line? cpp doesnt like me doing maths with streampos though
+		stream.seekg(startPos, std::ios_base::beg);
+		stream.seekg(header.dependenciesOffset, std::ios_base::cur);
+		out.m_dependencies.reserve(header.dependencyCount);
+		for (int i = 0; i < header.dependencyCount; ++i)
+			std::getline(stream, out.m_dependencies[i], '\0');
 
 		// read variables
+		stream.seekg(startPos, std::ios_base::beg);
+		stream.seekg(header.variablesOffset, std::ios_base::cur);
+		out.m_variables.reserve(header.variableCount);
+		for (int i = 0; i < header.variableCount; ++i)
+			if (!PersistentVariable::FromStream(stream, out.m_variables[i]))
+				return false;
 
 		// read groups
+		stream.seekg(startPos, std::ios_base::beg);
+		stream.seekg(header.groupsOffset, std::ios_base::cur);
+		out.m_groups.reserve(header.groupCount);
+		for (int i = 0; i < header.groupCount; ++i)
+			if (!PersistentGroup::FromStream(stream, out.m_groups[i]))
+				return false;
 
 		// read identifiers
+		stream.seekg(startPos, std::ios_base::beg);
+		stream.seekg(header.identifiersOffset, std::ios_base::cur);
+		out.m_identifiers.reserve(header.identifiersCount);
+		for (int i = 0; i < header.identifiersCount; ++i)
+			std::getline(stream, out.m_identifiers[i], '\0');
 
 		return true;
 	}
@@ -65,6 +91,7 @@ namespace ModdedPersistence
 		CommitChanges();
 
 		auto startPos = stream.tellp();
+		static const char* padStr = std::string(8, '\0').c_str();
 
 		PersistenceDataHeader header {};
 		header.version = 1;
@@ -78,12 +105,18 @@ namespace ModdedPersistence
 		for (auto& dependency : m_dependencies)
 			stream.write(dependency.c_str(), dependency.size());
 
+		auto dependenciesEnd = stream.tellp();
+		stream.write(padStr, 8 - dependenciesEnd % 8);
+
 		// write variables
 		header.variableCount = m_variables.size();
 		header.variablesOffset = stream.tellp() - startPos;
 		for (auto& variable : m_variables)
 			if (!variable.ToStream(stream))
 				return false;
+
+		auto variablesEnd = stream.tellp();
+		stream.write(padStr, 8 - variablesEnd % 8);
 
 		// write groups
 		header.groupCount = m_groups.size();
@@ -92,15 +125,21 @@ namespace ModdedPersistence
 			if (!group.ToStream(stream))
 				return false;
 
+		auto groupsEnd = stream.tellp();
+		stream.write(padStr, 8 - groupsEnd % 8);
+
 		// write identifiers
 		header.identifiersCount = m_identifiers.size();
 		header.identifiersOffset = stream.tellp() - startPos;
 		for (auto& identifier : m_identifiers)
 			stream.write(identifier.c_str(), identifier.size());
 
+		auto identifiersEnd = stream.tellp();
+		stream.write(padStr, 8 - identifiersEnd % 8);
+
 		// go back to the start and write the populated header back
 		auto curPos = stream.tellp();
-		stream.seekp(startPos);
+		stream.seekp(startPos, std::ios_base::beg);
 		stream.write(reinterpret_cast<char*>(&header), sizeof(header));
 		stream.seekp(curPos);
 
