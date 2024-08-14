@@ -7,6 +7,9 @@
 
 namespace ModdedPersistence
 {
+	class PersistenceDataInstance;
+
+
 	// enums use int
 	using PersistentVarTypeVariant = std::variant<bool, int, float, std::string>;
 	constexpr char NSPDATA_MAGIC[4] = {'N', 'S', 'P', 'D'};
@@ -45,7 +48,6 @@ namespace ModdedPersistence
 	private:
 		// mod dependency for enum value vars
 		int m_dependency;
-		VarType m_type;
 		// todo: could this be a union?
 		PersistentVarTypeVariant m_value;
 
@@ -55,7 +57,7 @@ namespace ModdedPersistence
 	class PersistentVariable
 	{
 	public:
-		static bool FromStream(std::istream& stream, PersistentVariable& out);
+		static bool FromStream(std::istream& stream, PersistenceDataInstance& parent, PersistentVariable& out);
 		bool ToStream(std::ostream& stream);
 
 		// adds a possibility, or replaces one if they have matching dependencies
@@ -65,8 +67,11 @@ namespace ModdedPersistence
 		PersistentVariablePossibility& SelectPossibility();
 
 	private:
-		// should be a reference to a member of m_identifiers in PersistenceDataInstance
-		std::string& m_identifier;
+		PersistentVariable() = default;
+		PersistenceDataInstance& m_parent;
+
+		unsigned int m_identifierIndex;
+		VarType m_type;
 		std::vector<PersistentVariablePossibility> m_possibilities;
 
 		PersistentVariablePossibility& m_selectedPossibility;
@@ -137,6 +142,11 @@ namespace ModdedPersistence
 		std::map<size_t, PersistentVariablePossibility&> m_selectedVariables;
 		// bitfield of m_dependencies, showing which ones are currently enabled
 		std::vector<bool> m_enabledDependencies;
+
+		friend class PersistentVariable;
+		friend class PersistentVariablePossibility
+		friend class PersistentGroup;
+		friend class PersistentGroupPossibility;
 	};
 
 	// defines a fully-formed persistent datum for a player along with an interface for accessing

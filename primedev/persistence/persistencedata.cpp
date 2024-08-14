@@ -10,7 +10,43 @@ namespace ModdedPersistence
 
 
 
+	bool PersistentVariable::FromStream(std::istream& stream, PersistenceDataInstance& parent, PersistentVariable& out)
+	{
+		out = PersistentVariable();
+		out.m_parent = parent;
+		auto startPos = stream.tellg();
 
+		stream.read(&out.m_identifierIndex, sizeof(out.m_identifierIndex));
+		stream.read(&out.m_type, sizeof(out.m_type));
+
+		unsigned int possibilityCount;
+		stream.read(&possibilityCount, sizeof(possibilityCount));
+
+		for (unsigned int i = 0; i < possibilityCount; ++i)
+		{
+			PersistentVariablePossibility possibility;
+			if (!PersistentVariablePossibility::FromStream(stream, possibility))
+				return false;
+			AddPossibility(possibility);
+		}
+
+		return true;
+	}
+
+	bool PersistentVariable::ToStream(std::ostream& stream)
+	{
+		stream.write(&m_identifierIndex, sizeof(m_identifierIndex));
+		stream.write(&m_type, sizeof(m_type));
+
+		unsigned int possibilityCount = static_cast<unsigned int>(m_possibilities.size());
+		stream.write(&possibilityCount, sizeof(possibilityCount));
+
+		for (auto& possibility : m_possibilities)
+			if (!possibility.ToStream(stream))
+				return false;
+
+		return true;
+	}
 
 
 
@@ -59,6 +95,13 @@ namespace ModdedPersistence
 		for (int i = 0; i < header.dependencyCount; ++i)
 			std::getline(stream, out.m_dependencies[i], '\0');
 
+		// read identifiers
+		stream.seekg(startPos, std::ios_base::beg);
+		stream.seekg(header.identifiersOffset, std::ios_base::cur);
+		out.m_identifiers.reserve(header.identifiersCount);
+		for (int i = 0; i < header.identifiersCount; ++i)
+			std::getline(stream, out.m_identifiers[i], '\0');
+
 		// read variables
 		stream.seekg(startPos, std::ios_base::beg);
 		stream.seekg(header.variablesOffset, std::ios_base::cur);
@@ -74,13 +117,6 @@ namespace ModdedPersistence
 		for (int i = 0; i < header.groupCount; ++i)
 			if (!PersistentGroup::FromStream(stream, out.m_groups[i]))
 				return false;
-
-		// read identifiers
-		stream.seekg(startPos, std::ios_base::beg);
-		stream.seekg(header.identifiersOffset, std::ios_base::cur);
-		out.m_identifiers.reserve(header.identifiersCount);
-		for (int i = 0; i < header.identifiersCount; ++i)
-			std::getline(stream, out.m_identifiers[i], '\0');
 
 		return true;
 	}
