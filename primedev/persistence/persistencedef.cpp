@@ -527,14 +527,15 @@ $STRUCT_END\n\
 
 	void PersistentVarDefinitionData::FlattenVariables()
 	{
-		GatherVariables(m_vars, m_persistentVarDefs, "", {});
+		GatherVariables(m_vars, m_persistentVarDefs, "", {}, {});
 	}
 
 	void PersistentVarDefinitionData::GatherVariables(
 		const std::map<size_t, ParseDefinitions::VarDef>& sourceVarDefs,
 		std::map<size_t, PersistentVarDefinition>& targetVarDefs,
 		std::string idPrefix,
-		std::vector<std::string> dependentMods)
+		std::vector<std::string> dependentMods,
+		std::vector<size_t> structStack)
 	{
 		for (auto& [idHash, varDef] : sourceVarDefs)
 		{
@@ -645,7 +646,20 @@ $STRUCT_END\n\
 				const ParseDefinitions::StructDef* structDef = dynamic_cast<ParseDefinitions::StructDef*>(typeDef);
 				if (structDef != nullptr)
 				{
-					GatherVariables(structDef->GetMembers(), targetVarDefs, idStr + ".", varDependentMods);
+					const size_t curStructId = STR_HASH(typeStr);
+					// check for looping definitions
+					for (size_t structId : structStack)
+					{
+						if (structId == curStructId)
+						{
+							spdlog::error("Circular struct definition detected: {} defines a member of it's own type", typeStr);
+							continue;
+						}
+					}
+
+					structStack.push_back(curStructId);
+					GatherVariables(structDef->GetMembers(), targetVarDefs, idStr + ".", varDependentMods, structStack);
+					structStack.pop_back();
 					continue;
 				}
 			}

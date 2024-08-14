@@ -216,7 +216,8 @@ namespace ModdedPersistence
 			const std::map<size_t, ParseDefinitions::VarDef>& sourceVarDefs,
 			std::map<size_t, PersistentVarDefinition>& targetVarDefs,
 			std::string idPrefix,
-			std::vector<std::string> dependentMods);
+			std::vector<std::string> dependentMods,
+			std::vector<size_t> structStack);
 
 		bool m_finalised = false;
 		// stores the current modded pdef, reloaded on map change
