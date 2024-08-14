@@ -8,6 +8,8 @@
 namespace ModdedPersistence
 {
 	class PersistenceDataInstance;
+	class PersistentVariable;
+	class PersistentGroup;
 
 
 	// enums use int
@@ -40,12 +42,15 @@ namespace ModdedPersistence
 	class PersistentVariablePossibility : public PersistencePossibility
 	{
 	public:
+		PersistentVariablePossibility(PersistentVariable& parent);
+
 		static bool FromStream(std::istream& stream, PersistentVariablePossibility& out);
 		bool ToStream(std::ostream& stream);
 
 		std::vector<bool> GetDependencies() override;
 
 	private:
+		PersistentVariable& m_parent;
 		// mod dependency for enum value vars
 		int m_dependency;
 		// todo: could this be a union?
@@ -57,24 +62,25 @@ namespace ModdedPersistence
 	class PersistentVariable
 	{
 	public:
-		static bool FromStream(std::istream& stream, PersistenceDataInstance& parent, PersistentVariable& out);
+		PersistentVariable(PersistenceDataInstance& parent);
+
+		static bool FromStream(std::istream& stream, PersistentVariable& out);
 		bool ToStream(std::ostream& stream);
 
 		// adds a possibility, or replaces one if they have matching dependencies
 		void AddPossibility(PersistentVariablePossibility& possibility);
 		// selects the best possibility based on the enabled dependencies
 		// note: prefers the "most specific" possibility (the one with the most dependencies)
-		PersistentVariablePossibility& SelectPossibility();
+		PersistentVariablePossibility& SelectBestPossibility();
 
 	private:
-		PersistentVariable() = default;
 		PersistenceDataInstance& m_parent;
 
 		unsigned int m_identifierIndex;
 		VarType m_type;
 		std::vector<PersistentVariablePossibility> m_possibilities;
 
-		PersistentVariablePossibility& m_selectedPossibility;
+		PersistentVariablePossibility* m_selectedPossibility;
 	};
 
 	// A group possibility is a collection of variable possibilities that must be loaded all together.
@@ -83,12 +89,16 @@ namespace ModdedPersistence
 	class PersistentGroupPossibility : public PersistencePossibility
 	{
 	public:
+		PersistentGroupPossibility(PersistentGroup& parent);
+
 		static bool FromStream(std::istream& stream, PersistentGroupPossibility& out);
 		bool ToStream(std::ostream& stream);
 
 		std::vector<bool> GetDependencies() override;
 
 	private:
+		PersistentGroup& m_parent;
+
 		std::vector<PersistentVariablePossibility> m_members;
 
 		friend class PersistentGroup;
@@ -97,6 +107,8 @@ namespace ModdedPersistence
 	class PersistentGroup
 	{
 	public:
+		PersistentGroup(PersistenceDataInstance& parent);
+
 		static bool FromStream(std::istream& stream, PersistentGroup& out);
 		bool ToStream(std::ostream& stream);
 
@@ -107,12 +119,13 @@ namespace ModdedPersistence
 		PersistentGroupPossibility& SelectPossibility();
 
 	private:
+		PersistenceDataInstance& m_parent;
+
 		// identifier of the instance, not the type identifier
-		// should be a reference to a member of m_identifiers in PersistenceDataInstance
-		std::string& m_identifier;
+		unsigned int m_identifierIndex;
 		std::vector<PersistentGroupPossibility> m_possibilities;
 
-		PersistentGroupPossibility& m_selectedPossibility;
+		PersistentGroupPossibility* m_selectedPossibility;
 	};
 
 	// A client's entire modded persistence data
@@ -144,7 +157,7 @@ namespace ModdedPersistence
 		std::vector<bool> m_enabledDependencies;
 
 		friend class PersistentVariable;
-		friend class PersistentVariablePossibility
+		friend class PersistentVariablePossibility;
 		friend class PersistentGroup;
 		friend class PersistentGroupPossibility;
 	};

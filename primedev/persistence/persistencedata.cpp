@@ -8,38 +8,33 @@ namespace ModdedPersistence
 
 
 
+	PersistentVariable::PersistentVariable(PersistenceDataInstance& parent)
+		: m_parent(parent)
+	{}
 
-
-	bool PersistentVariable::FromStream(std::istream& stream, PersistenceDataInstance& parent, PersistentVariable& out)
+	bool PersistentVariable::FromStream(std::istream& stream, PersistentVariable& out)
 	{
-		out = PersistentVariable();
-		out.m_parent = parent;
-		auto startPos = stream.tellg();
+		stream.read(reinterpret_cast<char*>(&out.m_identifierIndex), sizeof(out.m_identifierIndex));
+		stream.read(reinterpret_cast<char*>(&out.m_type), sizeof(out.m_type));
 
-		stream.read(&out.m_identifierIndex, sizeof(out.m_identifierIndex));
-		stream.read(&out.m_type, sizeof(out.m_type));
+		unsigned int possibilityCount = 0;
+		stream.read(reinterpret_cast<char*>(&possibilityCount), sizeof(possibilityCount));
 
-		unsigned int possibilityCount;
-		stream.read(&possibilityCount, sizeof(possibilityCount));
-
+		out.m_possibilities.resize(possibilityCount, PersistentVariablePossibility(out));
 		for (unsigned int i = 0; i < possibilityCount; ++i)
-		{
-			PersistentVariablePossibility possibility;
-			if (!PersistentVariablePossibility::FromStream(stream, possibility))
+			if (!PersistentVariablePossibility::FromStream(stream, out.m_possibilities[i]))
 				return false;
-			AddPossibility(possibility);
-		}
 
 		return true;
 	}
 
 	bool PersistentVariable::ToStream(std::ostream& stream)
 	{
-		stream.write(&m_identifierIndex, sizeof(m_identifierIndex));
-		stream.write(&m_type, sizeof(m_type));
+		stream.write(reinterpret_cast<char*>(&m_identifierIndex), sizeof(m_identifierIndex));
+		stream.write(reinterpret_cast<char*>(&m_type), sizeof(m_type));
 
 		unsigned int possibilityCount = static_cast<unsigned int>(m_possibilities.size());
-		stream.write(&possibilityCount, sizeof(possibilityCount));
+		stream.write(reinterpret_cast<char*>(&possibilityCount), sizeof(possibilityCount));
 
 		for (auto& possibility : m_possibilities)
 			if (!possibility.ToStream(stream))
@@ -69,7 +64,6 @@ namespace ModdedPersistence
 
 	bool PersistenceDataInstance::FromStream(std::istream& stream, PersistenceDataInstance& out)
 	{
-		out = PersistenceDataInstance();
 		auto startPos = stream.tellg();
 
 		PersistenceDataHeader header {};
@@ -81,7 +75,7 @@ namespace ModdedPersistence
 			return false;
 		}
 
-		if (reinterpret_cast<int>(header.magic) != reinterpret_cast<int>(NSPDATA_MAGIC))
+		if (strncmp(header.magic, NSPDATA_MAGIC, 4))
 		{
 			spdlog::error("Invalid nspdata file magic?");
 			return false;
@@ -91,30 +85,30 @@ namespace ModdedPersistence
 		// todo: one line? cpp doesnt like me doing maths with streampos though
 		stream.seekg(startPos, std::ios_base::beg);
 		stream.seekg(header.dependenciesOffset, std::ios_base::cur);
-		out.m_dependencies.reserve(header.dependencyCount);
-		for (int i = 0; i < header.dependencyCount; ++i)
+		out.m_dependencies.resize(header.dependencyCount);
+		for (unsigned int i = 0; i < header.dependencyCount; ++i)
 			std::getline(stream, out.m_dependencies[i], '\0');
 
 		// read identifiers
 		stream.seekg(startPos, std::ios_base::beg);
 		stream.seekg(header.identifiersOffset, std::ios_base::cur);
-		out.m_identifiers.reserve(header.identifiersCount);
-		for (int i = 0; i < header.identifiersCount; ++i)
+		out.m_identifiers.resize(header.identifiersCount);
+		for (unsigned int i = 0; i < header.identifiersCount; ++i)
 			std::getline(stream, out.m_identifiers[i], '\0');
 
 		// read variables
 		stream.seekg(startPos, std::ios_base::beg);
 		stream.seekg(header.variablesOffset, std::ios_base::cur);
-		out.m_variables.reserve(header.variableCount);
-		for (int i = 0; i < header.variableCount; ++i)
+		out.m_variables.resize(header.variableCount, PersistentVariable(out));
+		for (unsigned int i = 0; i < header.variableCount; ++i)
 			if (!PersistentVariable::FromStream(stream, out.m_variables[i]))
 				return false;
 
 		// read groups
 		stream.seekg(startPos, std::ios_base::beg);
 		stream.seekg(header.groupsOffset, std::ios_base::cur);
-		out.m_groups.reserve(header.groupCount);
-		for (int i = 0; i < header.groupCount; ++i)
+		out.m_groups.resize(header.groupCount, PersistentGroup(out));
+		for (unsigned int i = 0; i < header.groupCount; ++i)
 			if (!PersistentGroup::FromStream(stream, out.m_groups[i]))
 				return false;
 
