@@ -12,7 +12,7 @@ namespace ModdedPersistence
 	class PersistentGroup;
 
 
-	// enums use int
+	// enums use string in stored data, but are converted to int for querying
 	using PersistentVarTypeVariant = std::variant<bool, int, float, std::string>;
 	constexpr char NSPDATA_MAGIC[4] = {'N', 'S', 'P', 'D'};
 
@@ -52,7 +52,7 @@ namespace ModdedPersistence
 	private:
 		PersistentVariable& m_parent;
 		// mod dependency for enum value vars
-		int m_dependency;
+		int m_dependencyIndex = 0;
 		// todo: could this be a union?
 		PersistentVarTypeVariant m_value;
 
@@ -76,11 +76,13 @@ namespace ModdedPersistence
 	private:
 		PersistenceDataInstance& m_parent;
 
-		unsigned int m_identifierIndex;
-		VarType m_type;
-		std::vector<PersistentVariablePossibility> m_possibilities;
+		unsigned int m_identifierIndex = 0;
+		VarType m_type = VarType::INVALID;
+		std::vector<PersistentVariablePossibility> m_possibilities = {};
 
-		PersistentVariablePossibility* m_selectedPossibility;
+		PersistentVariablePossibility* m_selectedPossibility = nullptr;
+
+		friend class PersistentVariablePossibility;
 	};
 
 	// A group possibility is a collection of variable possibilities that must be loaded all together.
@@ -116,16 +118,16 @@ namespace ModdedPersistence
 		void AddPossibility(PersistentGroupPossibility& possibility);
 		// selects the best possibility based on the enabled dependencies
 		// note: prefers the "most specific" possibility (the one with the most dependencies)
-		PersistentGroupPossibility& SelectPossibility();
+		PersistentGroupPossibility& SelectBestPossibility();
 
 	private:
 		PersistenceDataInstance& m_parent;
 
 		// identifier of the instance, not the type identifier
-		unsigned int m_identifierIndex;
-		std::vector<PersistentGroupPossibility> m_possibilities;
+		unsigned int m_identifierIndex = 0;
+		std::vector<PersistentGroupPossibility> m_possibilities = {};
 
-		PersistentGroupPossibility* m_selectedPossibility;
+		PersistentGroupPossibility* m_selectedPossibility = nullptr;
 	};
 
 	// A client's entire modded persistence data

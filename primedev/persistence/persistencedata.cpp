@@ -6,7 +6,91 @@ namespace ModdedPersistence
 
 
 
+	PersistentVariablePossibility::PersistentVariablePossibility(PersistentVariable& parent)
+		: m_parent(parent)
+	{}
 
+	bool PersistentVariablePossibility::FromStream(std::istream& stream, PersistentVariablePossibility& out)
+	{
+		stream.read(reinterpret_cast<char*>(&out.m_dependencyIndex), sizeof(out.m_dependencyIndex));
+
+		switch (out.m_parent.m_type)
+		{
+		case (VarType::BOOL):
+		{
+			bool value = false;
+			stream.read(reinterpret_cast<char*>(&value), sizeof(value));
+			out.m_value = value;
+			break;
+		}
+		case (VarType::INT):
+		{
+			int value = 0;
+			stream.read(reinterpret_cast<char*>(&value), sizeof(value));
+			out.m_value = value;
+			break;
+		}
+		case (VarType::FLOAT):
+		{
+			float value = false;
+			stream.read(reinterpret_cast<char*>(&value), sizeof(value));
+			out.m_value = value;
+			break;
+		}
+		case (VarType::STRING):
+		case (VarType::ENUM):
+		{
+			std::string value;
+			std::getline(stream, value, '\00');
+			out.m_value = value;
+			break;
+		}
+		default:
+			spdlog::error("Invalid type {}", out.m_parent.m_type);
+			return false;
+		}
+
+		return true;
+	}
+
+	bool PersistentVariablePossibility::ToStream(std::ostream& stream)
+	{
+		stream.write(reinterpret_cast<char*>(&m_dependencyIndex), sizeof(m_dependencyIndex));
+
+		switch (m_parent.m_type)
+		{
+		case (VarType::BOOL):
+		{
+			bool value = std::get<bool>(m_value);
+			stream.write(reinterpret_cast<char*>(&value), sizeof(value));
+			break;
+		}
+		case (VarType::INT):
+		{
+			int value = std::get<int>(m_value);
+			stream.write(reinterpret_cast<char*>(&value), sizeof(value));
+			break;
+		}
+		case (VarType::FLOAT):
+		{
+			float value = std::get<float>(m_value);
+			stream.write(reinterpret_cast<char*>(&value), sizeof(value));
+			break;
+		}
+		case (VarType::STRING):
+		case (VarType::ENUM):
+		{
+			std::string value = std::get<std::string>(m_value);
+			stream.write(value.c_str(), value.length());
+			break;
+		}
+		default:
+			spdlog::error("Invalid type {}", m_parent.m_type);
+			return false;
+		}
+
+		return true;
+	}
 
 	PersistentVariable::PersistentVariable(PersistenceDataInstance& parent)
 		: m_parent(parent)
@@ -121,7 +205,7 @@ namespace ModdedPersistence
 		CommitChanges();
 
 		auto startPos = stream.tellp();
-		static const char* padStr = std::string(8, '\0').c_str();
+		static const std::string padStr = std::string(8, '\0');
 
 		PersistenceDataHeader header {};
 		header.version = 1;
@@ -136,7 +220,7 @@ namespace ModdedPersistence
 			stream.write(dependency.c_str(), dependency.size());
 
 		auto dependenciesEnd = stream.tellp();
-		stream.write(padStr, 8 - dependenciesEnd % 8);
+		stream.write(padStr.c_str(), 8 - dependenciesEnd % 8);
 
 		// write variables
 		header.variableCount = m_variables.size();
@@ -146,7 +230,7 @@ namespace ModdedPersistence
 				return false;
 
 		auto variablesEnd = stream.tellp();
-		stream.write(padStr, 8 - variablesEnd % 8);
+		stream.write(padStr.c_str(), 8 - variablesEnd % 8);
 
 		// write groups
 		header.groupCount = m_groups.size();
@@ -156,7 +240,7 @@ namespace ModdedPersistence
 				return false;
 
 		auto groupsEnd = stream.tellp();
-		stream.write(padStr, 8 - groupsEnd % 8);
+		stream.write(padStr.c_str(), 8 - groupsEnd % 8);
 
 		// write identifiers
 		header.identifiersCount = m_identifiers.size();
@@ -165,7 +249,7 @@ namespace ModdedPersistence
 			stream.write(identifier.c_str(), identifier.size());
 
 		auto identifiersEnd = stream.tellp();
-		stream.write(padStr, 8 - identifiersEnd % 8);
+		stream.write(padStr.c_str(), 8 - identifiersEnd % 8);
 
 		// go back to the start and write the populated header back
 		auto curPos = stream.tellp();
