@@ -133,7 +133,6 @@ namespace ModdedPersistence
 
 	PersistentVariablePossibility& PersistentVariable::GetBestPossibility()
 	{
-		// TODO: insert return statement here
 		int highestScore = -1;
 		PersistentVariablePossibility* ret = nullptr;
 
