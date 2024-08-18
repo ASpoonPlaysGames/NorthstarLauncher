@@ -4,59 +4,11 @@
 
 namespace ModdedPersistence
 {
-	// todo: remove temp testing string and/or read from file
-	const std::string TEST_PDIFF_STRING = "////////////////////////\n\
-// BASIC TYPE TESTING //\n\
-////////////////////////\n\
-\n\
-int test_int\n\
-float test_float\n\
-bool test_bool\n\
-string{16} test_string\n\
-int test_array[8]\n\
-\n\
-//////////////////\n\
-// ENUM TESTING //\n\
-//////////////////\n\
-\n\
-$ENUM_START test_enum_def\n\
-	test_enum_def_0\n\
-	test_enum_def_1\n\
-$ENUM_END\n\
-\n\
-test_enum_def test_enum\n\
-// since we parse types first before variables, this should have length of 3\n\
-int test_enum_array[test_enum_def]\n\
-\n\
-// defining the same enum twice just concatenates them, but they cannot contain duplicate members\n\
-$ENUM_START test_enum_def\n\
-	test_enum_def_2\n\
-$ENUM_END\n\
-\n\
-////////////////////\n\
-// STRUCT TESTING //\n\
-////////////////////\n\
-\n\
-$STRUCT_START test_struct_def\n\
-	int test_struct_member_int\n\
-	string{16} test_struct_member_string\n\
-$STRUCT_END\n\
-\n\
-// this should also have the float member\n\
-test_struct_def test_struct_instance\n\
-test_struct_def test_struct_array[3]\n\
-\n\
-// defining the same struct twice also concatenates them, but they cannot contain duplicate members\n\
-$STRUCT_START test_struct_def\n\
-	float test_struct_member_float\n\
-$STRUCT_END\n\
-";
-
 	const char* ID_CHARS = "aAbBcCdDeEfFgGhHiIjJkKlLmMnNoOpPqQrRsStTuUvVwWxXyYzZ0123456789_";
 #define ID_RGX "[a-zA-Z_][a-zA-Z0-9_]*" // first character must be a non-digit
 
-	// trims leading whitespace, comments, and trailing whitespace before comments
-	const std::regex LINE_TRIM_RGX("^\\s*(.*?)\\s*(?:\\/\\/.*)?$");
+	// trims leading and trailing whitespace
+	const std::regex LINE_TRIM_RGX("^\\s*(.*?)\\s*$");
 	const std::regex ENUM_START_RGX("^\\$ENUM_START (" ID_RGX ")$");
 	const std::regex ENUM_END_RGX("^\\$ENUM_END$");
 	const std::regex STRUCT_START_RGX("^\\$STRUCT_START (" ID_RGX ")$");
@@ -150,11 +102,6 @@ $STRUCT_END\n\
 		if (instance == nullptr)
 		{
 			instance = new PersistentVarDefinitionData();
-
-			// todo: remove hardcoded file
-			std::stringstream stream(TEST_PDIFF_STRING);
-			instance->LoadPersistenceBase(stream);
-			instance->Finalise();
 		}
 
 		return instance;
@@ -317,28 +264,32 @@ $STRUCT_END\n\
 		std::string currentLine;
 		while (++lineNumber, std::getline(stream, currentLine))
 		{
-			// trim whitespace and comments
-			std::smatch matches;
-			if (!std::regex_search(currentLine, matches, LINE_TRIM_RGX))
+			// trim comments
+			std::string trimmedLine = currentLine.substr(0, currentLine.find("//"));
+			// trim whitespace
 			{
-				spdlog::error("Failed to match line trimming regex? Probable launcher bug D:");
-				spdlog::error(currentLine);
-				return false;
-			}
-			if (matches.size() != 2)
-			{
-				// note: the vector of matches includes the full matches and the captured groups like this
-				// full, group1, group2, full, group1, group2, etc.
-				// so because we have 1 capture group, we expect two entries, the first being the full match
-				// and the second being the capture group.
-				spdlog::error("Got {} regex matches (expected 2) for line trimming regex? Probable launcher bug D:", matches.size());
-				spdlog::error(currentLine);
-				for (auto& it : matches)
-					spdlog::error(it.str());
-				return false;
-			}
+				std::smatch matches;
+				if (!std::regex_search(trimmedLine, matches, LINE_TRIM_RGX))
+				{
+					spdlog::error("Failed to match line trimming regex? Probable launcher bug D:");
+					spdlog::error(currentLine);
+					return false;
+				}
+				if (matches.size() != 2)
+				{
+					// note: the vector of matches includes the full matches and the captured groups like this
+					// full, group1, group2, full, group1, group2, etc.
+					// so because we have 1 capture group, we expect two entries, the first being the full match
+					// and the second being the capture group.
+					spdlog::error("Got {} regex matches (expected 2) for line trimming regex? Probable launcher bug D:", matches.size());
+					spdlog::error(currentLine);
+					for (auto& it : matches)
+						spdlog::error(it.str());
+					return false;
+				}
 
-			std::string trimmedLine = matches[1];
+				trimmedLine = matches[1];
+			}
 			// pure whitespace and/or comment line, nothing to parse
 			if (trimmedLine.empty())
 				continue;

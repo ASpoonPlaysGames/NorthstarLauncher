@@ -3,12 +3,7 @@
 namespace ModdedPersistence
 {
 
-
-
-
-	PersistentVariablePossibility::PersistentVariablePossibility(PersistentVariable& parent)
-		: m_parent(parent)
-	{}
+	PersistentVariablePossibility::PersistentVariablePossibility(PersistentVariable& parent) : m_parent(parent) {}
 
 	bool PersistentVariablePossibility::FromStream(std::istream& stream, PersistentVariablePossibility& out)
 	{
@@ -92,9 +87,18 @@ namespace ModdedPersistence
 		return true;
 	}
 
-	PersistentVariable::PersistentVariable(PersistenceDataInstance& parent)
-		: m_parent(parent)
-	{}
+	std::vector<bool> ModdedPersistence::PersistentVariablePossibility::GetDependencies()
+	{
+		size_t dependencySize = m_parent.m_parent.m_dependencies.size();
+		std::vector<bool> ret(dependencySize);
+
+		assert(m_dependencyIndex < dependencySize);
+		ret[m_dependencyIndex] = true;
+
+		return ret;
+	}
+
+	PersistentVariable::PersistentVariable(PersistenceDataInstance& parent) : m_parent(parent) {}
 
 	bool PersistentVariable::FromStream(std::istream& stream, PersistentVariable& out)
 	{
@@ -127,10 +131,85 @@ namespace ModdedPersistence
 		return true;
 	}
 
+	PersistentVariablePossibility& PersistentVariable::GetBestPossibility()
+	{
+		// TODO: insert return statement here
+		int highestScore = -1;
+		PersistentVariablePossibility* ret = nullptr;
 
+		for (auto& possibility : m_possibilities)
+		{
+			int score = 0;
+			bool valid = true;
+			auto dependencies = possibility.GetDependencies();
+			assert(dependencies.size() == m_parent.m_enabledDependencies.size());
 
+			for (int i = 0; i < dependencies.size(); ++i)
+			{
+				if (dependencies[i] != m_parent.m_enabledDependencies[i])
+				{
+					valid = false;
+					return;
+				}
 
+				if (dependencies[i])
+					++score;
+			}
 
+			if (valid && score > highestScore)
+			{
+				highestScore = score;
+				ret = &possibility;
+			}
+		}
+
+		if (ret)
+			return *ret;
+		else
+			return m_possibilities.emplace_back(this); // make a new one if we dont have any valid ones
+	}
+
+	PersistentGroupPossibility::PersistentGroupPossibility(PersistentGroup& parent) : m_parent(parent) {}
+
+	bool PersistentGroupPossibility::FromStream(std::istream& stream, PersistentGroupPossibility& out)
+	{
+		// todo: implement
+		return false;
+	}
+
+	bool PersistentGroupPossibility::ToStream(std::ostream& stream)
+	{
+		// todo: implement
+		return false;
+	}
+
+	std::vector<bool> PersistentGroupPossibility::GetDependencies()
+	{
+		// todo: this is kinda shit 
+		std::vector<bool> ret(m_parent.m_parent.m_identifiers.size());
+
+		for (auto& possibility : m_members)
+		{
+			auto dep = possibility.GetDependencies();
+			std::transform(ret.begin(), ret.end(), dep.begin(), ret.begin(), [](bool first, bool second) { return first || second; });
+		}
+
+		return ret;
+	}
+
+	PersistentGroup::PersistentGroup(PersistenceDataInstance& parent) : m_parent(parent) {}
+
+	bool PersistentGroup::FromStream(std::istream& stream, PersistentGroup& out)
+	{
+		// todo: implement
+		return false;
+	}
+
+	bool PersistentGroup::ToStream(std::ostream& stream)
+	{
+		// todo: implement
+		return false;
+	}
 
 	int PersistenceDataInstance::GetDependencyIndex(const char* dependency)
 	{
@@ -260,14 +339,26 @@ namespace ModdedPersistence
 		return true;
 	}
 
+	void PersistenceDataInstance::Finalise(std::vector<std::string> loadedModNames)
+	{
+		// todo: implement
 
-	//PersistentVar::PersistentVar(PersistentVarDefinition* def, PersistentVarTypeVariant val)
+		// iterate over pdef variables
+		// get best possibility for each variable
+	}
+
+	void PersistenceDataInstance::CommitChanges()
+	{
+		// todo: implement
+	}
+
+	// PersistentVar::PersistentVar(PersistentVarDefinition* def, PersistentVarTypeVariant val)
 	//{
 	//	m_definition = def;
 	//	m_value = val;
-	//}
+	// }
 
-	//int PersistentVar::GetAsInteger()
+	// int PersistentVar::GetAsInteger()
 	//{
 	//	switch (m_definition->m_type)
 	//	{
@@ -307,7 +398,7 @@ namespace ModdedPersistence
 		return instance;
 	}
 
-	//PersistentVar& PersistentVarData::GetVar(void* player, const char* name)
+	// PersistentVar& PersistentVarData::GetVar(void* player, const char* name)
 	//{
 	//	const size_t nameHash = STR_HASH(name);
 
@@ -319,4 +410,25 @@ namespace ModdedPersistence
 
 	//	return var->second;
 	//}
+
+} // namespace ModdedPersistence
+
+void ConCommand_persistence_dump(const CCommand& args)
+{
+	// commit changes
+
+	// write to file stream
+}
+
+void ConCommand_persistence_load(const CCommand& args)
+{
+	// clear data
+
+	// load from file stream
+}
+
+ON_DLL_LOAD("engine.dll", PersistenceData, (CModule module))
+{
+	RegisterConCommand("persistence_dump", ConCommand_persistence_dump, "Dumps persistence data to a file", FCVAR_GAMEDLL);
+	RegisterConCommand("persistence_load", ConCommand_persistence_load, "Loads persistence data from a file", FCVAR_GAMEDLL);
 }

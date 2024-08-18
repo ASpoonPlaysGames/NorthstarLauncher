@@ -71,7 +71,7 @@ namespace ModdedPersistence
 		void AddPossibility(PersistentVariablePossibility& possibility);
 		// selects the best possibility based on the enabled dependencies
 		// note: prefers the "most specific" possibility (the one with the most dependencies)
-		PersistentVariablePossibility& SelectBestPossibility();
+		PersistentVariablePossibility& GetBestPossibility();
 
 	private:
 		PersistenceDataInstance& m_parent;
@@ -118,7 +118,7 @@ namespace ModdedPersistence
 		void AddPossibility(PersistentGroupPossibility& possibility);
 		// selects the best possibility based on the enabled dependencies
 		// note: prefers the "most specific" possibility (the one with the most dependencies)
-		PersistentGroupPossibility& SelectBestPossibility();
+		PersistentGroupPossibility& GetBestPossibility();
 
 	private:
 		PersistenceDataInstance& m_parent;
@@ -128,6 +128,8 @@ namespace ModdedPersistence
 		std::vector<PersistentGroupPossibility> m_possibilities = {};
 
 		PersistentGroupPossibility* m_selectedPossibility = nullptr;
+
+		friend class PersistentGroupPossibility;
 	};
 
 	// A client's entire modded persistence data

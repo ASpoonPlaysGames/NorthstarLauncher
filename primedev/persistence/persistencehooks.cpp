@@ -29,13 +29,13 @@ REPLACE_SQCLASSFUNC(GetPersistentVarAsInt, CPlayer, ScriptContext::SERVER)
 	// todo: evaluate if this logic should be moved mostly into ModdedPersistence::PersistentVar
 	{
 		// if found, check if var can be got as an int
-		if (IsValidAsInteger(varDef->GetType()))
-		{
-			// if valid, get as int and push to squirrel
-			PersistentVar& varValue = varData.GetVar(player, argString);
-			sq.pushinteger(sqvm, varValue.GetAsInteger());
-			return SQRESULT_NOTNULL;
-		}
+		//if (IsValidAsInteger(varDef->GetType()))
+		//{
+		//	// if valid, get as int and push to squirrel
+		//	PersistentVar& varValue = varData.GetVar(player, argString);
+		//	sq.pushinteger(sqvm, varValue.GetAsInteger());
+		//	return SQRESULT_NOTNULL;
+		//}
 
 		spdlog::warn("Invalid modded var to retrieve as int '{}'", argString);
 		return SQRESULT_NULL;
