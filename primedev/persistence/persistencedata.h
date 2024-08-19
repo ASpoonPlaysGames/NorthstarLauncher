@@ -1,5 +1,6 @@
 #pragma once
 #include "persistencedef.h"
+#include "mods/modmanager.h"
 #include "squirrel/squirrel.h"
 #include <variant>
 #include <map>
@@ -11,184 +12,116 @@ namespace ModdedPersistence
 	class PersistentVariable;
 	class PersistentGroup;
 
-
 	// enums use string in stored data, but are converted to int for querying
 	using PersistentVarTypeVariant = std::variant<bool, int, float, std::string>;
+	using StrIdx = unsigned int;
 	constexpr char NSPDATA_MAGIC[4] = {'N', 'S', 'P', 'D'};
 
-#pragma pack(push, 1)
-	struct PersistenceDataHeader
+	namespace ParseDefinitions
 	{
-		unsigned int version; // I don't really see this changing, but it's there i guess
-		char magic[4];
+		// Raw file structs
+#pragma pack(push, 1)
+		union DataVariableValue
+		{
+			bool asBool;
+			int asInt;
+			float asFloat;
+			StrIdx asString;
+			StrIdx asEnum;
+		};
 
-		unsigned int dependenciesOffset;
-		unsigned int dependencyCount;
-		unsigned int variablesOffset;
-		unsigned int variableCount;
-		unsigned int groupsOffset;
-		unsigned int groupCount;
-		unsigned int identifiersOffset;
-		unsigned int identifiersCount;
-	};
+		struct DataHeader
+		{
+			unsigned int version; // I don't really see this changing, but it's there i guess
+			char magic[4];
+
+			unsigned int stringsOffset;
+			unsigned int stringCount;
+			unsigned int variablesOffset;
+			unsigned int variableCount;
+			unsigned int groupsOffset;
+			unsigned int groupCount;
+		};
+
+		struct DataVariablePossibility
+		{
+			StrIdx dependency;
+			DataVariableValue value;
+		};
+
+		struct DataVariableHeader
+		{
+			VarType type;
+			StrIdx name;
+			unsigned int possibilityCount;
+		};
+
+		struct DataVariable
+		{
+			VarType type;
+			StrIdx name;
+			std::vector<DataVariablePossibility> possibilities;
+		};
+
+		struct DataGroupMember
+		{
+			VarType type;
+			StrIdx name;
+			DataVariableValue value;
+		};
+
+		struct DataGroupPossibilityHeader
+		{
+			unsigned int dependencyCount;
+			unsigned int memberCount;
+		};
+
+		struct DataGroupPossibility
+		{
+			std::vector<StrIdx> dependencies;
+			std::vector<DataGroupMember> members;
+		};
+
+		struct DataGroupHeader
+		{
+			unsigned int possibilityCount;
+		};
+
+		struct DataGroup
+		{
+			std::vector<DataGroupPossibility> possibilities;
+		};
+
 #pragma pack(pop)
 
-	class PersistencePossibility
-	{
-		// gets a bit array containing the required mod dependencies
-		virtual std::vector<bool> GetDependencies() = 0;
-	};
-
-	class PersistentVariablePossibility : public PersistencePossibility
-	{
-	public:
-		PersistentVariablePossibility(PersistentVariable& parent);
-
-		static bool FromStream(std::istream& stream, PersistentVariablePossibility& out);
-		bool ToStream(std::ostream& stream);
-
-		std::vector<bool> GetDependencies() override;
-
-	private:
-		PersistentVariable& m_parent;
-		// mod dependency for enum value vars
-		int m_dependencyIndex = 0;
-		// todo: could this be a union?
-		PersistentVarTypeVariant m_value;
-
-		friend class PersistentVariable;
-	};
-
-	class PersistentVariable
-	{
-	public:
-		PersistentVariable(PersistenceDataInstance& parent);
-
-		static bool FromStream(std::istream& stream, PersistentVariable& out);
-		bool ToStream(std::ostream& stream);
-
-		// adds a possibility, or replaces one if they have matching dependencies
-		void AddPossibility(PersistentVariablePossibility& possibility);
-		// selects the best possibility based on the enabled dependencies
-		// note: prefers the "most specific" possibility (the one with the most dependencies)
-		PersistentVariablePossibility& GetBestPossibility();
-
-	private:
-		PersistenceDataInstance& m_parent;
-
-		unsigned int m_identifierIndex = 0;
-		VarType m_type = VarType::INVALID;
-		std::vector<PersistentVariablePossibility> m_possibilities = {};
-
-		PersistentVariablePossibility* m_selectedPossibility = nullptr;
-
-		friend class PersistentVariablePossibility;
-	};
-
-	// A group possibility is a collection of variable possibilities that must be loaded all together.
-	// The group is dependent on all of the variables' dependencies.
-	// A group is defined in pdef as a file scope struct instance.
-	class PersistentGroupPossibility : public PersistencePossibility
-	{
-	public:
-		PersistentGroupPossibility(PersistentGroup& parent);
-
-		static bool FromStream(std::istream& stream, PersistentGroupPossibility& out);
-		bool ToStream(std::ostream& stream);
-
-		std::vector<bool> GetDependencies() override;
-
-	private:
-		PersistentGroup& m_parent;
-
-		std::vector<PersistentVariablePossibility> m_members;
-
-		friend class PersistentGroup;
-	};
-
-	class PersistentGroup
-	{
-	public:
-		PersistentGroup(PersistenceDataInstance& parent);
-
-		static bool FromStream(std::istream& stream, PersistentGroup& out);
-		bool ToStream(std::ostream& stream);
-
-		// adds a possibility, or replaces one if they have matching dependencies
-		void AddPossibility(PersistentGroupPossibility& possibility);
-		// selects the best possibility based on the enabled dependencies
-		// note: prefers the "most specific" possibility (the one with the most dependencies)
-		PersistentGroupPossibility& GetBestPossibility();
-
-	private:
-		PersistenceDataInstance& m_parent;
-
-		// identifier of the instance, not the type identifier
-		unsigned int m_identifierIndex = 0;
-		std::vector<PersistentGroupPossibility> m_possibilities = {};
-
-		PersistentGroupPossibility* m_selectedPossibility = nullptr;
-
-		friend class PersistentGroupPossibility;
-	};
+	} // namespace ParseDefinitions
 
 	// A client's entire modded persistence data
 	class PersistenceDataInstance
 	{
 	public:
-		// Gets the index of a mod dependency, adding it if it didn't exist
-		int GetDependencyIndex(const char* dependency);
+		PersistenceDataInstance();
 
-		static bool FromStream(std::istream& stream, PersistenceDataInstance& out);
+		bool ParseFile(std::istream& stream);
 		bool ToStream(std::ostream& stream);
 
-		// Uses the enabled mod names to select persistent variables
-		void Finalise(std::vector<std::string> loadedModNames);
+		void Finalise(std::vector<Mod>& loadedMods);
 
 	private:
 		// Gets all groups and variables to sort out their possibilities, sorting conflicts etc.
 		void CommitChanges();
 
-		std::vector<std::string> m_dependencies;
-		std::vector<PersistentVariable> m_variables;
-		std::vector<PersistentGroup> m_groups;
-		std::vector<std::string> m_identifiers;
+		std::vector<std::string> m_strings;
+		std::vector<ParseDefinitions::DataVariable> m_variables;
+		std::vector<ParseDefinitions::DataGroup> m_groups;
 
 		bool m_finalised = false;
-		// selected possibilities after finalising, key being the hash of the flattened identifier
-		std::map<size_t, PersistentVariablePossibility&> m_selectedVariables;
-		// bitfield of m_dependencies, showing which ones are currently enabled
-		std::vector<bool> m_enabledDependencies;
-
-		friend class PersistentVariable;
-		friend class PersistentVariablePossibility;
-		friend class PersistentGroup;
-		friend class PersistentGroupPossibility;
 	};
-
-	// defines a fully-formed persistent datum for a player along with an interface for accessing
-	// the datum and pushing to the sqvm
-	// class PersistentVar
-	//{
-	// public:
-	//	PersistentVar(PersistentVarDefinition* def, PersistentVarTypeVariant val);
-	//	VarType GetType() { return m_definition->m_type; }
-	//	int GetAsInteger();
-
-	// private:
-	//	PersistentVarTypeVariant m_value;
-	//	PersistentVarDefinition* m_definition;
-	// };
-
 	// interface for getting and setting persistent variables
 	class PersistentVarData
 	{
 	public:
 		static PersistentVarData* GetInstance();
-
-		// todo: delete
-		// PersistentVar& GetVar(void* player, const char* name);
-		// bool PersistenceAvailable(void* player);
 
 		// loads persistence for the given player
 		bool Load(void* player, void* data);
@@ -200,9 +133,8 @@ namespace ModdedPersistence
 	private:
 		PersistentVarData() = default;
 
-		// std::map<void*, std::map<size_t, PersistentVar>> m_persistentVars;
-
 		// key being something related to the client, todo
 		std::unordered_map<void*, std::shared_ptr<PersistenceDataInstance>> m_persistenceData;
 	};
+
 } // namespace ModdedPersistence

@@ -2,233 +2,15 @@
 
 namespace ModdedPersistence
 {
+	PersistenceDataInstance::PersistenceDataInstance() {}
 
-	PersistentVariablePossibility::PersistentVariablePossibility(PersistentVariable& parent) : m_parent(parent) {}
-
-	bool PersistentVariablePossibility::FromStream(std::istream& stream, PersistentVariablePossibility& out)
+	bool PersistenceDataInstance::ParseFile(std::istream& stream)
 	{
-		stream.read(reinterpret_cast<char*>(&out.m_dependencyIndex), sizeof(out.m_dependencyIndex));
+		using namespace ParseDefinitions;
 
-		switch (out.m_parent.m_type)
-		{
-		case (VarType::BOOL):
-		{
-			bool value = false;
-			stream.read(reinterpret_cast<char*>(&value), sizeof(value));
-			out.m_value = value;
-			break;
-		}
-		case (VarType::INT):
-		{
-			int value = 0;
-			stream.read(reinterpret_cast<char*>(&value), sizeof(value));
-			out.m_value = value;
-			break;
-		}
-		case (VarType::FLOAT):
-		{
-			float value = false;
-			stream.read(reinterpret_cast<char*>(&value), sizeof(value));
-			out.m_value = value;
-			break;
-		}
-		case (VarType::STRING):
-		case (VarType::ENUM):
-		{
-			std::string value;
-			std::getline(stream, value, '\00');
-			out.m_value = value;
-			break;
-		}
-		default:
-			spdlog::error("Invalid type {}", out.m_parent.m_type);
-			return false;
-		}
-
-		return true;
-	}
-
-	bool PersistentVariablePossibility::ToStream(std::ostream& stream)
-	{
-		stream.write(reinterpret_cast<char*>(&m_dependencyIndex), sizeof(m_dependencyIndex));
-
-		switch (m_parent.m_type)
-		{
-		case (VarType::BOOL):
-		{
-			bool value = std::get<bool>(m_value);
-			stream.write(reinterpret_cast<char*>(&value), sizeof(value));
-			break;
-		}
-		case (VarType::INT):
-		{
-			int value = std::get<int>(m_value);
-			stream.write(reinterpret_cast<char*>(&value), sizeof(value));
-			break;
-		}
-		case (VarType::FLOAT):
-		{
-			float value = std::get<float>(m_value);
-			stream.write(reinterpret_cast<char*>(&value), sizeof(value));
-			break;
-		}
-		case (VarType::STRING):
-		case (VarType::ENUM):
-		{
-			std::string value = std::get<std::string>(m_value);
-			stream.write(value.c_str(), value.length());
-			break;
-		}
-		default:
-			spdlog::error("Invalid type {}", m_parent.m_type);
-			return false;
-		}
-
-		return true;
-	}
-
-	std::vector<bool> ModdedPersistence::PersistentVariablePossibility::GetDependencies()
-	{
-		size_t dependencySize = m_parent.m_parent.m_dependencies.size();
-		std::vector<bool> ret(dependencySize);
-
-		assert(m_dependencyIndex < dependencySize);
-		ret[m_dependencyIndex] = true;
-
-		return ret;
-	}
-
-	PersistentVariable::PersistentVariable(PersistenceDataInstance& parent) : m_parent(parent) {}
-
-	bool PersistentVariable::FromStream(std::istream& stream, PersistentVariable& out)
-	{
-		stream.read(reinterpret_cast<char*>(&out.m_identifierIndex), sizeof(out.m_identifierIndex));
-		stream.read(reinterpret_cast<char*>(&out.m_type), sizeof(out.m_type));
-
-		unsigned int possibilityCount = 0;
-		stream.read(reinterpret_cast<char*>(&possibilityCount), sizeof(possibilityCount));
-
-		out.m_possibilities.resize(possibilityCount, PersistentVariablePossibility(out));
-		for (unsigned int i = 0; i < possibilityCount; ++i)
-			if (!PersistentVariablePossibility::FromStream(stream, out.m_possibilities[i]))
-				return false;
-
-		return true;
-	}
-
-	bool PersistentVariable::ToStream(std::ostream& stream)
-	{
-		stream.write(reinterpret_cast<char*>(&m_identifierIndex), sizeof(m_identifierIndex));
-		stream.write(reinterpret_cast<char*>(&m_type), sizeof(m_type));
-
-		unsigned int possibilityCount = static_cast<unsigned int>(m_possibilities.size());
-		stream.write(reinterpret_cast<char*>(&possibilityCount), sizeof(possibilityCount));
-
-		for (auto& possibility : m_possibilities)
-			if (!possibility.ToStream(stream))
-				return false;
-
-		return true;
-	}
-
-	PersistentVariablePossibility& PersistentVariable::GetBestPossibility()
-	{
-		int highestScore = -1;
-		PersistentVariablePossibility* ret = nullptr;
-
-		for (auto& possibility : m_possibilities)
-		{
-			int score = 0;
-			bool valid = true;
-			auto dependencies = possibility.GetDependencies();
-			assert(dependencies.size() == m_parent.m_enabledDependencies.size());
-
-			for (int i = 0; i < dependencies.size(); ++i)
-			{
-				if (dependencies[i] != m_parent.m_enabledDependencies[i])
-				{
-					valid = false;
-					return;
-				}
-
-				if (dependencies[i])
-					++score;
-			}
-
-			if (valid && score > highestScore)
-			{
-				highestScore = score;
-				ret = &possibility;
-			}
-		}
-
-		if (ret)
-			return *ret;
-		else
-			return m_possibilities.emplace_back(this); // make a new one if we dont have any valid ones
-	}
-
-	PersistentGroupPossibility::PersistentGroupPossibility(PersistentGroup& parent) : m_parent(parent) {}
-
-	bool PersistentGroupPossibility::FromStream(std::istream& stream, PersistentGroupPossibility& out)
-	{
-		// todo: implement
-		return false;
-	}
-
-	bool PersistentGroupPossibility::ToStream(std::ostream& stream)
-	{
-		// todo: implement
-		return false;
-	}
-
-	std::vector<bool> PersistentGroupPossibility::GetDependencies()
-	{
-		// todo: this is kinda shit 
-		std::vector<bool> ret(m_parent.m_parent.m_identifiers.size());
-
-		for (auto& possibility : m_members)
-		{
-			auto dep = possibility.GetDependencies();
-			std::transform(ret.begin(), ret.end(), dep.begin(), ret.begin(), [](bool first, bool second) { return first || second; });
-		}
-
-		return ret;
-	}
-
-	PersistentGroup::PersistentGroup(PersistenceDataInstance& parent) : m_parent(parent) {}
-
-	bool PersistentGroup::FromStream(std::istream& stream, PersistentGroup& out)
-	{
-		// todo: implement
-		return false;
-	}
-
-	bool PersistentGroup::ToStream(std::ostream& stream)
-	{
-		// todo: implement
-		return false;
-	}
-
-	int PersistenceDataInstance::GetDependencyIndex(const char* dependency)
-	{
-		const int originalSize = static_cast<int>(m_dependencies.size());
-
-		for (int i = 0; i < originalSize; ++i)
-		{
-			if (m_dependencies[i] == dependency)
-				return i;
-		}
-
-		m_dependencies.push_back(dependency);
-		return originalSize;
-	}
-
-	bool PersistenceDataInstance::FromStream(std::istream& stream, PersistenceDataInstance& out)
-	{
 		auto startPos = stream.tellg();
 
-		PersistenceDataHeader header {};
+		DataHeader header {};
 		stream.read(reinterpret_cast<char*>(&header), sizeof(header));
 
 		if (header.version != 1)
@@ -243,36 +25,76 @@ namespace ModdedPersistence
 			return false;
 		}
 
-		// read dependencies
-		// todo: one line? cpp doesnt like me doing maths with streampos though
+		// read all strings
 		stream.seekg(startPos, std::ios_base::beg);
-		stream.seekg(header.dependenciesOffset, std::ios_base::cur);
-		out.m_dependencies.resize(header.dependencyCount);
-		for (unsigned int i = 0; i < header.dependencyCount; ++i)
-			std::getline(stream, out.m_dependencies[i], '\0');
-
-		// read identifiers
-		stream.seekg(startPos, std::ios_base::beg);
-		stream.seekg(header.identifiersOffset, std::ios_base::cur);
-		out.m_identifiers.resize(header.identifiersCount);
-		for (unsigned int i = 0; i < header.identifiersCount; ++i)
-			std::getline(stream, out.m_identifiers[i], '\0');
+		stream.seekg(header.groupsOffset, std::ios_base::cur);
+		m_strings.resize(header.stringCount);
+		for (unsigned int i = 0; i < header.stringCount; ++i)
+			std::getline(stream, m_strings[i], '\00');
 
 		// read variables
 		stream.seekg(startPos, std::ios_base::beg);
 		stream.seekg(header.variablesOffset, std::ios_base::cur);
-		out.m_variables.resize(header.variableCount, PersistentVariable(out));
-		for (unsigned int i = 0; i < header.variableCount; ++i)
-			if (!PersistentVariable::FromStream(stream, out.m_variables[i]))
-				return false;
+		m_variables.resize(header.variableCount);
+		for (unsigned int variableIndex = 0; variableIndex < header.variableCount; ++variableIndex)
+		{
+			DataVariable& variable = m_variables[variableIndex];
+
+			DataVariableHeader variableHeader;
+			stream.read(reinterpret_cast<char*>(&variableHeader), sizeof(variableHeader));
+
+			variable.name = variableHeader.name;
+			variable.type = variableHeader.type;
+
+			// read possibilities
+			variable.possibilities.resize(variableHeader.possibilityCount);
+			for (unsigned int possibilityIndex = 0; possibilityIndex < variableHeader.possibilityCount; ++possibilityIndex)
+			{
+				DataVariablePossibility& variablePossibility = variable.possibilities[possibilityIndex];
+
+				stream.read(reinterpret_cast<char*>(&variablePossibility.dependency), sizeof(variablePossibility.dependency));
+				// is this UB? could be ig...
+				stream.read(reinterpret_cast<char*>(&variablePossibility.value), sizeof(variablePossibility.value));
+			}
+		}
 
 		// read groups
 		stream.seekg(startPos, std::ios_base::beg);
 		stream.seekg(header.groupsOffset, std::ios_base::cur);
-		out.m_groups.resize(header.groupCount, PersistentGroup(out));
-		for (unsigned int i = 0; i < header.groupCount; ++i)
-			if (!PersistentGroup::FromStream(stream, out.m_groups[i]))
-				return false;
+		m_groups.resize(header.groupCount);
+		for (unsigned int groupIndex = 0; groupIndex < header.groupCount; ++groupIndex)
+		{
+			DataGroup& group = m_groups[groupIndex];
+
+			DataGroupHeader groupHeader;
+			stream.read(reinterpret_cast<char*>(&groupHeader), sizeof(groupHeader));
+
+			// read group possibilities
+			group.possibilities.resize(groupHeader.possibilityCount);
+			for (unsigned int possibilityIndex = 0; possibilityIndex < groupHeader.possibilityCount; ++possibilityIndex)
+			{
+				DataGroupPossibility& groupPossibility = group.possibilities[possibilityIndex];
+
+				DataGroupPossibilityHeader groupPossibilityHeader;
+				stream.read(reinterpret_cast<char*>(&groupPossibilityHeader), sizeof(groupPossibilityHeader));
+
+				// read dependencies
+				groupPossibility.dependencies.resize(groupPossibilityHeader.dependencyCount);
+				for (unsigned int dependencyIndex = 0; dependencyIndex < groupPossibilityHeader.dependencyCount; ++dependencyIndex)
+				{
+					StrIdx& stringsIndex = groupPossibility.dependencies[dependencyIndex];
+					stream.read(reinterpret_cast<char*>(&stringsIndex), sizeof(stringsIndex));
+				}
+
+				// read members
+				groupPossibility.members.resize(groupPossibilityHeader.memberCount);
+				for (unsigned int memberIndex = 0; memberIndex < groupPossibilityHeader.memberCount; ++memberIndex)
+				{
+					DataGroupMember& member = groupPossibility.members[memberIndex];
+					stream.read(reinterpret_cast<char*>(&member), sizeof(member));
+				}
+			}
+		}
 
 		return true;
 	}
@@ -285,49 +107,13 @@ namespace ModdedPersistence
 		auto startPos = stream.tellp();
 		static const std::string padStr = std::string(8, '\0');
 
-		PersistenceDataHeader header {};
+		ParseDefinitions::DataHeader header {};
 		header.version = 1;
 		memcpy(&header.magic, NSPDATA_MAGIC, 4);
 		// write dummy header to the stream
 		stream.write(reinterpret_cast<char*>(&header), sizeof(header));
 
-		// write dependencies
-		header.dependencyCount = m_dependencies.size();
-		header.dependenciesOffset = stream.tellp() - startPos;
-		for (auto& dependency : m_dependencies)
-			stream.write(dependency.c_str(), dependency.size());
-
-		auto dependenciesEnd = stream.tellp();
-		stream.write(padStr.c_str(), 8 - dependenciesEnd % 8);
-
-		// write variables
-		header.variableCount = m_variables.size();
-		header.variablesOffset = stream.tellp() - startPos;
-		for (auto& variable : m_variables)
-			if (!variable.ToStream(stream))
-				return false;
-
-		auto variablesEnd = stream.tellp();
-		stream.write(padStr.c_str(), 8 - variablesEnd % 8);
-
-		// write groups
-		header.groupCount = m_groups.size();
-		header.groupsOffset = stream.tellp() - startPos;
-		for (auto& group : m_groups)
-			if (!group.ToStream(stream))
-				return false;
-
-		auto groupsEnd = stream.tellp();
-		stream.write(padStr.c_str(), 8 - groupsEnd % 8);
-
-		// write identifiers
-		header.identifiersCount = m_identifiers.size();
-		header.identifiersOffset = stream.tellp() - startPos;
-		for (auto& identifier : m_identifiers)
-			stream.write(identifier.c_str(), identifier.size());
-
-		auto identifiersEnd = stream.tellp();
-		stream.write(padStr.c_str(), 8 - identifiersEnd % 8);
+		// todo: implement
 
 		// go back to the start and write the populated header back
 		auto curPos = stream.tellp();
@@ -338,7 +124,7 @@ namespace ModdedPersistence
 		return true;
 	}
 
-	void PersistenceDataInstance::Finalise(std::vector<std::string> loadedModNames)
+	void PersistenceDataInstance::Finalise(std::vector<Mod>& loadedMods)
 	{
 		// todo: implement
 
