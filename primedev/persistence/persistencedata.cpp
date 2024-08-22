@@ -376,6 +376,11 @@ namespace ModdedPersistence
 
 		for (auto& [hash, varDef] : pdef.GetFlattenedVars())
 		{
+			// vanilla defs that aren't enum values will never need modded data
+			// todo: unless they are in a group with a modded value
+			if (varDef.IsVanillaDef() && varDef.GetType() != VarType::ENUM)
+				continue;
+
 			auto [pair, isNew] = m_flattened.emplace(hash, FlattenedDataVariable());
 			auto& variable = pair->second;
 			if (isNew)

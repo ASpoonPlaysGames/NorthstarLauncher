@@ -166,6 +166,10 @@ namespace ModdedPersistence
 			return m_stringSize;
 		}
 		void SetStringSize(int size) { m_stringSize = size; }
+		bool IsVanillaDef()
+		{
+			return m_dependencies.empty();
+		}
 
 	private:
 		VarType m_type = VarType::INVALID;
