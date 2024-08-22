@@ -96,6 +96,15 @@ namespace ModdedPersistence
 
 	} // namespace ParseDefinitions
 
+	using FlattenedDataVariableValue = std::variant<bool, int, float, std::string>;
+
+	struct FlattenedDataVariable
+	{
+		std::string m_name; // debug really
+		VarType m_type;
+		FlattenedDataVariableValue m_value;
+	};
+
 	// A client's entire modded persistence data
 	class PersistenceDataInstance
 	{
@@ -111,9 +120,13 @@ namespace ModdedPersistence
 		// Gets all groups and variables to sort out their possibilities, sorting conflicts etc.
 		void CommitChanges();
 
+		// raw file stuff
 		std::vector<std::string> m_strings;
 		std::vector<ParseDefinitions::DataVariable> m_variables;
 		std::vector<ParseDefinitions::DataGroup> m_groups;
+
+		// actual data that we interface with
+		std::map<size_t, FlattenedDataVariable> m_flattened;
 
 		bool m_finalised = false;
 	};

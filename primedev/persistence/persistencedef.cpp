@@ -171,21 +171,21 @@ namespace ModdedPersistence
 
 	void PersistentVarDefinitionData::Finalise()
 	{
-		LogVarDefinitions();
+		//LogVarDefinitions();
 
 		// flatten variables and populate m_persistentVarDefs
 
 		FlattenVariables();
 
-		spdlog::warn("\n\n");
-		spdlog::warn("PRINTING FLATTENED:");
+		//spdlog::warn("\n\n");
+		//spdlog::warn("PRINTING FLATTENED:");
 
-		for (auto& [hash, var] : m_persistentVarDefs)
-		{
-			spdlog::warn(var.GetIdentifier());
-		}
+		//for (auto& [hash, var] : m_persistentVarDefs)
+		//{
+		//	spdlog::warn(var.GetIdentifier());
+		//}
 
-		spdlog::warn("\n\n");
+		//spdlog::warn("\n\n");
 
 		m_finalised = true;
 	}

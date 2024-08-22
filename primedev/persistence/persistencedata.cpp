@@ -1,7 +1,31 @@
 #include "persistencedata.h"
+#include "persistencedef.h"
 
 namespace ModdedPersistence
 {
+	static void ResetToDefault(FlattenedDataVariable& variable)
+	{
+		switch (variable.m_type)
+		{
+		case VarType::INT:
+			variable.m_value = 0;
+			break;
+		case VarType::FLOAT:
+			variable.m_value = 0.0f;
+			break;
+		case VarType::BOOL:
+			variable.m_value = false;
+			break;
+		case VarType::STRING:
+		case VarType::ENUM:
+			variable.m_value = "";
+			break;
+		default:
+			spdlog::error("Invalid VarType {} for variable {}", variable.m_type, variable.m_name);
+			return;
+		}
+	}
+
 	PersistenceDataInstance::PersistenceDataInstance() {}
 
 	bool PersistenceDataInstance::ParseFile(std::istream& stream)
@@ -126,15 +150,216 @@ namespace ModdedPersistence
 
 	void PersistenceDataInstance::Finalise(std::vector<Mod>& loadedMods)
 	{
-		// todo: implement
+		std::map<size_t, bool> enabledMods;
+		for (auto& mod : loadedMods)
+		{
+			// find name in m_strings
+			size_t hash = STR_HASH(mod.Name);
+			enabledMods.emplace(hash, mod.m_bEnabled);
+		}
 
-		// iterate over pdef variables
-		// get best possibility for each variable
+		// iterate through all groups and determine the best possibility
+		// flatten the groups into vars
+		for (auto& group : m_groups)
+		{
+			// find all valid possibilities
+			std::vector<std::pair<int, ParseDefinitions::DataGroupPossibility*>> validPossibilities;
+			for (auto& possibility : group.possibilities)
+			{
+				bool isValid = true;
+				int numMods = 0;
+				for (StrIdx index : possibility.dependencies)
+				{
+					const size_t hash = STR_HASH(m_strings[index]);
+					const auto it = enabledMods.find(hash);
+					// not present in mods or is disabled
+					if (it == enabledMods.end() || !it->second)
+					{
+						isValid = false;
+						break;
+					}
+					++numMods;
+				}
+
+				if (!isValid)
+					continue;
+
+				validPossibilities.push_back(std::make_pair(numMods, &possibility));
+			}
+
+			// find the possibility with the highest number of mods (todo?: sorting out multiple possibilities with the same number of mods)
+			int highestNumMods = -1;
+			ParseDefinitions::DataGroupPossibility* bestPossibility = nullptr;
+			for (auto& [numMods, possibility] : validPossibilities)
+			{
+				if (numMods > highestNumMods)
+				{
+					highestNumMods = numMods;
+					bestPossibility = possibility;
+				}
+			}
+
+			// no valid possibility for this group, skip loading it
+			if (bestPossibility == nullptr)
+				continue;
+
+			// flatten members into usable variables for the best possibility
+			for (auto& member : bestPossibility->members)
+			{
+				FlattenedDataVariable variable;
+
+				variable.m_name = m_strings[member.name];
+				variable.m_type = member.type;
+				switch (member.type)
+				{
+				case VarType::INT:
+					variable.m_value = member.value.asInt;
+					break;
+				case VarType::FLOAT:
+					variable.m_value = member.value.asFloat;
+					break;
+				case VarType::BOOL:
+					variable.m_value = member.value.asBool;
+					break;
+				case VarType::STRING:
+				case VarType::ENUM:
+					variable.m_value = m_strings[member.value.asInt];
+					break;
+				default:
+					spdlog::error("Invalid VarType {} for variable {}", member.type, variable.m_name);
+					return;
+				}
+
+				auto [foundVar, success] = m_flattened.emplace(STR_HASH(variable.m_name), variable);
+				if (!success)
+				{
+					spdlog::error("Duplicate persistence var: {} is defined twice (instead of two possibilities)", foundVar->second.m_name);
+					return;
+				}
+			}
+		}
+
+		// iterate through all vars and determine the best possibility
+		for (auto& variable : m_variables)
+		{
+			// find all valid possibilities
+			std::vector<std::pair<int, ParseDefinitions::DataVariablePossibility*>> validPossibilities;
+			for (auto& possibility : variable.possibilities)
+			{
+				bool isValid = true;
+				int numMods = 0;
+
+				if (possibility.dependency != -1)
+				{
+					const size_t hash = STR_HASH(m_strings[possibility.dependency]);
+					const auto it = enabledMods.find(hash);
+					// not present in mods or is disabled
+					if (it == enabledMods.end() || !it->second)
+					{
+						isValid = false;
+						break;
+					}
+					++numMods;
+				}
+
+				if (!isValid)
+					continue;
+
+				validPossibilities.push_back(std::make_pair(numMods, &possibility));
+			}
+
+			// find the possibility with the highest number of mods (todo?: sorting out multiple possibilities with the same number of mods)
+			int highestNumMods = -1;
+			ParseDefinitions::DataVariablePossibility* bestPossibility = nullptr;
+			for (auto& [numMods, possibility] : validPossibilities)
+			{
+				if (numMods > highestNumMods)
+				{
+					highestNumMods = numMods;
+					bestPossibility = possibility;
+				}
+			}
+
+			// no valid possibility for this variable, skip loading it
+			if (bestPossibility == nullptr)
+				continue;
+
+			FlattenedDataVariable flatVariable;
+
+			flatVariable.m_name = m_strings[variable.name];
+			flatVariable.m_type = variable.type;
+			switch (variable.type)
+			{
+			case VarType::INT:
+				flatVariable.m_value = bestPossibility->value.asInt;
+				break;
+			case VarType::FLOAT:
+				flatVariable.m_value = bestPossibility->value.asFloat;
+				break;
+			case VarType::BOOL:
+				flatVariable.m_value = bestPossibility->value.asBool;
+				break;
+			case VarType::STRING:
+			case VarType::ENUM:
+				flatVariable.m_value = m_strings[bestPossibility->value.asInt];
+				break;
+			default:
+				spdlog::error("Invalid VarType {} for variable {}", variable.type, flatVariable.m_name);
+				return;
+			}
+
+			auto [foundVar, success] = m_flattened.emplace(STR_HASH(flatVariable.m_name), flatVariable);
+			if (!success)
+			{
+				spdlog::error("Duplicate persistence var: {} is defined twice (instead of two possibilities)", foundVar->second.m_name);
+				return;
+			}
+		}
+
+		// add empty entries for any var defs that we don't have data for
+		auto& pdef = *PersistentVarDefinitionData::GetInstance();
+
+		for (auto& [hash, varDef] : pdef.GetFlattenedVars())
+		{
+			auto [pair, isNew] = m_flattened.emplace(hash, FlattenedDataVariable());
+			auto& variable = pair->second;
+			if (isNew)
+			{
+				spdlog::warn("Var {} not found in persistent data, creating entry.", varDef.GetIdentifier());
+				variable.m_name = varDef.GetIdentifier();
+				variable.m_type = varDef.GetType();
+				ResetToDefault(variable);
+			}
+			else
+			{
+				// validate type
+				if (varDef.GetType() != variable.m_type)
+				{
+					spdlog::error("{} pdef/pdata type mismatch ({} vs {}) data will be lost.", variable.m_name, varDef.GetType(), variable.m_type);
+					variable.m_type = varDef.GetType();
+					ResetToDefault(variable);
+				}
+				// validate string length
+				if (varDef.GetType() == VarType::STRING && std::get<std::string>(variable.m_value).length() > varDef.GetStringSize())
+				{
+					spdlog::error("{} string data is beyond allowed length of {}. Resetting.", variable.m_name, varDef.GetStringSize());
+					ResetToDefault(variable);
+				}
+			}
+		}
 	}
 
 	void PersistenceDataInstance::CommitChanges()
 	{
 		// todo: implement
+		// todo: remember to create groups if they are needed
+
+		// go through each variable
+		// check if should be grouped
+		// add to group if group exists
+		// create group if group doesnt exist
+
+		// remember to override the currently selected possibility or create one if one didnt exist
 	}
 
 	// PersistentVar::PersistentVar(PersistentVarDefinition* def, PersistentVarTypeVariant val)

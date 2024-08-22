@@ -161,6 +161,10 @@ namespace ModdedPersistence
 		{
 			return m_identifier.c_str();
 		}
+		int GetStringSize() const
+		{
+			return m_stringSize;
+		}
 		void SetStringSize(int size) { m_stringSize = size; }
 
 	private:
@@ -199,10 +203,12 @@ namespace ModdedPersistence
 		// Registers a type definition, returns nullptr if a var or type with the same identifier exists
 		ParseDefinitions::TypeDef* RegisterTypeDefinition(std::shared_ptr<ParseDefinitions::TypeDef> typeDef);
 
-		// Gets a var definition with the given identifier, returns nullptr if no such type exists
+		// Gets a var definition with the given identifier, returns nullptr if no such var exists
 		ParseDefinitions::VarDef* GetVarDefinition(const char* identifier);
 		// Registers a var definition, returns nullptr if a var or type with the same identifier exists
 		ParseDefinitions::VarDef* RegisterVarDefinition(ParseDefinitions::VarDef varDef);
+
+		const std::map<size_t, PersistentVarDefinition>& GetFlattenedVars() const { return m_persistentVarDefs; }
 
 	private:
 		PersistentVarDefinitionData() = default;
@@ -227,5 +233,7 @@ namespace ModdedPersistence
 		std::map<size_t, std::shared_ptr<ParseDefinitions::TypeDef>> m_types;
 		// all currently known persistent var defs (not flattened, raw parsing)
 		std::map<size_t, ParseDefinitions::VarDef> m_vars;
+
+		friend class PersistenceDataInstance;
 	};
 } // namespace ModdedPersistence
