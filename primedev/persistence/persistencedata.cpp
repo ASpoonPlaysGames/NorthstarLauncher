@@ -125,6 +125,8 @@ namespace ModdedPersistence
 
 	bool PersistenceDataInstance::ToStream(std::ostream& stream)
 	{
+		using namespace ParseDefinitions;
+
 		// sort out any changes that we made to the data before writing it
 		CommitChanges();
 
@@ -137,7 +139,60 @@ namespace ModdedPersistence
 		// write dummy header to the stream
 		stream.write(reinterpret_cast<char*>(&header), sizeof(header));
 
-		// todo: implement
+		// write all strings
+		auto stringOffset = stream.tellp() - startPos;
+		header.stringsOffset = stringOffset;
+		header.stringCount = m_strings.size();
+		for (auto& str : m_strings)
+			stream.write(str.c_str(), str.length());
+
+		// write variables
+		auto variablesOffset = stream.tellp() - startPos;
+		header.variablesOffset = variablesOffset;
+		header.variableCount = m_variables.size();
+		for (auto& variable : m_variables)
+		{
+			// write header
+			DataVariableHeader variableHeader;
+			variableHeader.name = variable.name;
+			variableHeader.type = variable.type;
+			variableHeader.possibilityCount = variable.possibilities.size();
+			stream.write(reinterpret_cast<char*>(&variableHeader), sizeof(variableHeader));
+
+			// write possibilities
+			for (auto& possibility : variable.possibilities)
+				stream.write(reinterpret_cast<char*>(&possibility), sizeof(possibility));
+		}
+
+		// write groups
+		auto groupsOffset = stream.tellp() - startPos;
+		header.groupsOffset = groupsOffset;
+		header.groupCount = m_groups.size();
+		for (auto& group : m_groups)
+		{
+			// write header
+			DataGroupHeader groupHeader;
+			groupHeader.possibilityCount = group.possibilities.size();
+			stream.write(reinterpret_cast<char*>(groupHeader), sizeof(groupHeader));
+
+			// write group possibilities
+			for (auto& groupPossibility : group.possibilities)
+			{
+				// write possibility header
+				DataGroupPossibilityHeader groupPossibilityHeader;
+				groupPossibilityHeader.dependencyCount = groupPossibility.dependencies.size();
+				groupPossibilityHeader.memberCount = groupPossibility.members.size();
+				stream.write(reinterpret_cast<char*>(groupPossibilityHeader), sizeof(groupPossibilityHeader));
+
+				// write dependencies
+				for (StrIdx dependency : groupPossibility.dependencies)
+					stream.write(reinterpret_cast<char*>(dependency), sizeof(dependency));
+
+				// write members
+				for (auto& member : groupPossibility.members)
+					stream.write(reinterpret_cast<char*>(member), sizeof(member));
+			}
+		}
 
 		// go back to the start and write the populated header back
 		auto curPos = stream.tellp();
@@ -353,6 +408,7 @@ namespace ModdedPersistence
 	{
 		// todo: implement
 		// todo: remember to create groups if they are needed
+		// todo: remember to fix up strings vector and set StrIdx values
 
 		// go through each variable
 		// check if should be grouped
