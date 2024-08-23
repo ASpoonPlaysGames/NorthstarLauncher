@@ -14,32 +14,38 @@ REPLACE_SQCLASSFUNC(GetPersistentVarAsInt, CPlayer, ScriptContext::SERVER)
 	const SQChar* argString = sq.getstring(sqvm, 1);
 	const size_t argStringHash = STR_HASH(argString);
 
-	void* player = nullptr;
-	// todo: uncomment when test data is removed
-	//sq.getthisentity(sqvm, &player);
+	CBasePlayer* player = nullptr;
+	sq.getthisentity(sqvm, &player); // does this actually get the right type?
+
+	//auto* playerData = varData.GetDataForPlayer(player);
+	//if (playerData == nullptr)
+	//	spdlog::error("no modded data found for player {}", player->m_nPlayerIndex);
 
 	// find var in modded pdef
 	PersistentVarDefinition* varDef = varDefData.FindVarDefinition(argString);
 	// todo: nuke this logic, eventually we should *only* use modded persistence systems so that we handle proper ownership of enum index values
 	// if not found, return vanilla function result, let vanilla persistence handle this
 	// addendum: fall back on vanilla only if we dont have a value in modded + it exists in pdef as a pure vanilla def
+	//if (varDef == nullptr)
+	//	return sq.m_funcOriginals["CPlayer.GetPersistentVarAsInt"](sqvm);
 	if (varDef == nullptr)
+		spdlog::error("Couldn't find def {}?", argString);
+
+	if (varDef == nullptr || (varDef->IsVanillaDef() && varDef->GetType() != VarType::ENUM))
 		return sq.m_funcOriginals["CPlayer.GetPersistentVarAsInt"](sqvm);
 
-	// todo: evaluate if this logic should be moved mostly into ModdedPersistence::PersistentVar
-	{
-		// if found, check if var can be got as an int
-		//if (IsValidAsInteger(varDef->GetType()))
-		//{
-		//	// if valid, get as int and push to squirrel
-		//	PersistentVar& varValue = varData.GetVar(player, argString);
-		//	sq.pushinteger(sqvm, varValue.GetAsInteger());
-		//	return SQRESULT_NOTNULL;
-		//}
+	// if found, check if var can be got as an int
+	//if (IsValidAsInteger(varDef->GetType()))
+	//{
+	//	// if valid, get as int and push to squirrel
+	//	PersistentVar& varValue = varData.GetVar(player, argString);
+	//	sq.pushinteger(sqvm, varValue.GetAsInteger());
+	//	return SQRESULT_NOTNULL;
+	//}
 
-		spdlog::warn("Invalid modded var to retrieve as int '{}'", argString);
-		return SQRESULT_NULL;
-	}
+	spdlog::warn("Invalid modded var to retrieve as int '{}'", argString);
+	return SQRESULT_NULL;
+	
 }
 
 REPLACE_SQCLASSFUNC(GetPersistentVar, CPlayer, ScriptContext::SERVER)
@@ -64,7 +70,7 @@ REPLACE_SQCLASSFUNC(SetPersistentVar, CPlayer, ScriptContext::SERVER)
 	auto& sq = *g_pSquirrel<context>;
 
 	const SQChar* argString = sq.getstring(sqvm, 1);
-	spdlog::info("SERVER SetPersistentVar called: '{}' '{}'", sq.getstring(sqvm, 1));
+	spdlog::info("SERVER SetPersistentVar called: '{}'", sq.getstring(sqvm, 1));
 
 	void* player = nullptr;
 	sq.getthisentity(sqvm, &player);

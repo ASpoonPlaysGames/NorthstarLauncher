@@ -5,6 +5,7 @@
 #include <variant>
 #include <map>
 #include <string>
+#include "server/r2server.h"
 
 namespace ModdedPersistence
 {
@@ -101,6 +102,7 @@ namespace ModdedPersistence
 	struct FlattenedDataVariable
 	{
 		std::string m_name; // debug really
+		std::string m_group; // not implemented yet
 		VarType m_type;
 		FlattenedDataVariableValue m_value;
 	};
@@ -112,10 +114,9 @@ namespace ModdedPersistence
 		PersistenceDataInstance();
 
 		bool ParseFile(std::istream& stream);
-		bool ToStream(std::ostream& stream);
-
 		void Finalise(std::vector<Mod>& loadedMods);
 
+		bool ToStream(std::ostream& stream);
 	private:
 		// Gets all groups and variables to sort out their possibilities, sorting conflicts etc.
 		void CommitChanges();
@@ -135,9 +136,10 @@ namespace ModdedPersistence
 	{
 	public:
 		static PersistentVarData* GetInstance();
+		PersistenceDataInstance* GetDataForPlayer(CBasePlayer* player);
 
 		// loads persistence for the given player
-		bool Load(void* player, void* data);
+		bool Load(CBasePlayer* player, void* data);
 		// clears all loaded persistence data for the given player
 		void Clear(void* player);
 		// clears all loaded persistence data

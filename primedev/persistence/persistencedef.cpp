@@ -5,15 +5,16 @@
 namespace ModdedPersistence
 {
 	const char* ID_CHARS = "aAbBcCdDeEfFgGhHiIjJkKlLmMnNoOpPqQrRsStTuUvVwWxXyYzZ0123456789_";
-#define ID_RGX "[a-zA-Z_][a-zA-Z0-9_]*" // first character must be a non-digit
+#define ID_RGX R"([a-zA-Z_][a-zA-Z0-9_]*)" // first character must be a non-digit
 
 	// trims leading and trailing whitespace
-	const std::regex LINE_TRIM_RGX("^\\s*(.*?)\\s*$");
-	const std::regex ENUM_START_RGX("^\\$ENUM_START (" ID_RGX ")$");
-	const std::regex ENUM_END_RGX("^\\$ENUM_END$");
-	const std::regex STRUCT_START_RGX("^\\$STRUCT_START (" ID_RGX ")$");
-	const std::regex STRUCT_END_RGX("^\\$STRUCT_END$");
-	const std::regex VAR_DEF_RGX("^(" ID_RGX ")(?:\\{(\\d+)\\})?\\s+(" ID_RGX ")(?:\\[(\\d+|" ID_RGX ")\\])?$");
+	const std::regex LINE_TRIM_RGX(R"(^\s*(.*?)\s*$)");
+	const std::regex ENUM_START_RGX(R"(^\$ENUM_START ()" ID_RGX R"()$)");
+	const std::regex ENUM_END_RGX(R"(^\$ENUM_END$)");
+	const std::regex STRUCT_START_RGX(R"(^\$STRUCT_START ()" ID_RGX R"()$)");
+	const std::regex STRUCT_END_RGX(R"(^\$STRUCT_END$)");
+	const std::regex VAR_DEF_RGX(R"(^()" ID_RGX R"()(?:\{(\d+)\})?\s+()" ID_RGX R"()(?:\[(\d+|)" ID_RGX R"()\])?$)");
+	const std::regex DUMB_ARRAY_THING_RGX(R"(([^\]])(?=\.|$))");
 
 	namespace ParseDefinitions
 	{
@@ -152,7 +153,11 @@ namespace ModdedPersistence
 
 	PersistentVarDefinition* PersistentVarDefinitionData::FindVarDefinition(const char* name)
 	{
-		const size_t nameHash = STR_HASH(name);
+		// for some reason, vanilla allows a def like "int xp" to be accessed though "xp[0]"? bit weird but ig i have to support it.
+		std::string fixedName = std::regex_replace(name, DUMB_ARRAY_THING_RGX, "$1[0]");
+
+
+		const size_t nameHash = STR_HASH(fixedName);
 		auto var = m_persistentVarDefs.find(nameHash);
 
 		return var != m_persistentVarDefs.end() ? &var->second : nullptr;
@@ -496,7 +501,6 @@ namespace ModdedPersistence
 				varDependentMods.push_back(varDef.GetOwner());
 
 			// find array size
-			bool useArraySuffix = false;
 			std::vector<std::string> arrayMembers;
 			std::string arraySize = varDef.GetArraySize();
 			if (arraySize.empty())
@@ -518,8 +522,6 @@ namespace ModdedPersistence
 				const int memberCount = enumDef->GetMemberCount();
 				for (int i = 0; i < memberCount; ++i)
 					arrayMembers.push_back(enumDef->GetMemberName(i));
-
-				useArraySuffix = true;
 			}
 			else if (arraySize.find_first_not_of("0123456789") == std::string::npos)
 			{
@@ -527,8 +529,6 @@ namespace ModdedPersistence
 				const int arraySizeInt = std::stoi(arraySize);
 				for (int i = 0; i < arraySizeInt; ++i)
 					arrayMembers.push_back(std::to_string(i));
-
-				useArraySuffix = true;
 			}
 
 			// loop over array members
@@ -536,35 +536,26 @@ namespace ModdedPersistence
 			{
 				const char* typeStr = varDef.GetType();
 				std::string idStr = varDefIdStr;
-				if (useArraySuffix)
-					idStr.append(std::format("[{}]", arrayMember));
+				idStr.append(std::format("[{}]", arrayMember));
 
 				VarType targetType = VarType::INVALID;
 
 				// no switch on string in C++ :(
 				if (!strcmp(typeStr, "bool"))
 				{
-					PersistentVarDefinition toAdd(VarType::BOOL, idStr, varDependentMods);
-					targetVarDefs.emplace(STR_HASH(idStr), toAdd);
-					continue;
+					targetType = VarType::BOOL;
 				}
 				else if (!strcmp(typeStr, "int"))
 				{
-					PersistentVarDefinition toAdd(VarType::INT, idStr, varDependentMods);
-					targetVarDefs.emplace(STR_HASH(idStr), toAdd);
-					continue;
+					targetType = VarType::INT;
 				}
 				else if (!strcmp(typeStr, "float"))
 				{
-					PersistentVarDefinition toAdd(VarType::FLOAT, idStr, varDependentMods);
-					targetVarDefs.emplace(STR_HASH(idStr), toAdd);
-					continue;
+					targetType = VarType::FLOAT;
 				}
 				else if (!strcmp(typeStr, "string"))
 				{
-					PersistentVarDefinition toAdd(VarType::STRING, idStr, varDependentMods);
-					targetVarDefs.emplace(STR_HASH(idStr), toAdd);
-					continue;
+					targetType = VarType::STRING;
 				}
 
 				if (targetType != VarType::INVALID)

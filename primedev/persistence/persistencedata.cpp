@@ -443,6 +443,14 @@ namespace ModdedPersistence
 		return instance;
 	}
 
+	PersistenceDataInstance* PersistentVarData::GetDataForPlayer(CBasePlayer* player)
+	{
+		auto it = m_persistenceData.find(player);
+		if (it != m_persistenceData.end())
+			return it->second.get();
+		return nullptr;
+	}
+
 } // namespace ModdedPersistence
 
 void ConCommand_persistence_dump(const CCommand& args)

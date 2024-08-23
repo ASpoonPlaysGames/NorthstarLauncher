@@ -166,7 +166,7 @@ namespace ModdedPersistence
 			return m_stringSize;
 		}
 		void SetStringSize(int size) { m_stringSize = size; }
-		bool IsVanillaDef()
+		bool IsVanillaDef() const
 		{
 			return m_dependencies.empty();
 		}
