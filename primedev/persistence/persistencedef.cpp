@@ -156,7 +156,6 @@ namespace ModdedPersistence
 		// for some reason, vanilla allows a def like "int xp" to be accessed though "xp[0]"? bit weird but ig i have to support it.
 		std::string fixedName = std::regex_replace(name, DUMB_ARRAY_THING_RGX, "$1[0]");
 
-
 		const size_t nameHash = STR_HASH(fixedName);
 		auto var = m_persistentVarDefs.find(nameHash);
 
@@ -484,6 +483,8 @@ namespace ModdedPersistence
 	void PersistentVarDefinitionData::FlattenVariables()
 	{
 		GatherVariables(m_vars, m_persistentVarDefs, "", {}, {});
+		for (auto& [hash, var] : m_vars)
+			GatherStuff(var, {""}, {});
 	}
 
 	void PersistentVarDefinitionData::GatherVariables(
@@ -605,6 +606,92 @@ namespace ModdedPersistence
 					continue;
 				}
 			}
+		}
+	}
+
+	void PersistentVarDefinitionData::GatherStuff(
+		ParseDefinitions::VarDef& varDef, std::vector<std::string> prefixAliases, std::vector<std::string> dependentMods)
+	{
+		std::vector<std::vector<std::string>> suffixAliasesVec;
+
+		// find array size
+		std::string arraySize = varDef.GetArraySize();
+		if (arraySize.empty())
+		{
+			suffixAliasesVec.push_back({"", "[0]"});
+		}
+		else if (auto* typeDef = GetTypeDefinition(arraySize.c_str()); typeDef != nullptr)
+		{
+			// found type, make sure its en enum
+			const ParseDefinitions::EnumDef* enumDef = dynamic_cast<ParseDefinitions::EnumDef*>(typeDef);
+			if (enumDef == nullptr)
+			{
+				spdlog::error("Invalid array size '{}' for variable '{}{}' ({})", arraySize, prefixAliases[0], varDef.GetIdentifier(), varDef.GetOwner());
+				spdlog::error(varDef.ToString());
+				return;
+			}
+
+			// add each enum member to array member strings
+			const int memberCount = enumDef->GetMemberCount();
+			for (int i = 0; i < memberCount; ++i)
+			{
+				suffixAliasesVec.push_back({enumDef->GetMemberName(i), std::to_string(i)});
+			}
+		}
+		else if (arraySize.find_first_not_of("0123456789") == std::string::npos)
+		{
+			// found number, construct array member strings
+			const int arraySizeInt = std::stoi(arraySize);
+			for (int i = 0; i < arraySizeInt; ++i)
+				suffixAliasesVec.push_back({std::to_string(i)});
+
+		}
+
+		// iterate over each suffix alias collection
+		for (auto& suffixAliases : suffixAliasesVec)
+		{
+			const char* typeStr = varDef.GetType();
+
+			VarType targetType = VarType::INVALID;
+
+			// no switch on string in C++ :(
+			if (!strcmp(typeStr, "bool"))
+			{
+				targetType = VarType::BOOL;
+			}
+			else if (!strcmp(typeStr, "int"))
+			{
+				targetType = VarType::INT;
+			}
+			else if (!strcmp(typeStr, "float"))
+			{
+				targetType = VarType::FLOAT;
+			}
+			else if (!strcmp(typeStr, "string"))
+			{
+				targetType = VarType::STRING;
+			}
+
+			if (targetType != VarType::INVALID)
+			{
+				PersistentVarDefinition toAdd(targetType, varDef.GetIdentifier(), dependentMods);
+				if (targetType == VarType::STRING)
+					toAdd.SetStringSize(varDef.GetNativeArraySize());
+
+				// add all aliases to the lookup table and add the new var
+				for (std::string& prefix : prefixAliases)
+				{
+					for (std::string& suffix : suffixAliases)
+					{
+						std::string alias = std::format("{}{}{}", prefix, varDef.GetIdentifier(), suffix);
+						m_varDefLookup.emplace(STR_HASH(alias), m_persistentVars.size());
+					}
+				}
+				m_persistentVars.push_back(toAdd);
+
+				continue;
+			}
+
 		}
 	}
 

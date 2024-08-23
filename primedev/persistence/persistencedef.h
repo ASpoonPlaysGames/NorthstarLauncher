@@ -157,28 +157,29 @@ namespace ModdedPersistence
 		{
 			return m_type;
 		}
+
 		const char* GetIdentifier() const
 		{
 			return m_identifier.c_str();
 		}
+		void SetIdentifier(std::string& identifier) { m_identifier = identifier; }
+
 		int GetStringSize() const
 		{
 			return m_stringSize;
 		}
 		void SetStringSize(int size) { m_stringSize = size; }
+
 		bool IsVanillaDef() const
 		{
 			return m_dependencies.empty();
 		}
-
 	private:
 		VarType m_type = VarType::INVALID;
 		std::string m_identifier;
 		const ParseDefinitions::EnumDef* m_enumType;
 		std::vector<std::string> m_dependencies;
 		int m_stringSize;
-
-		friend class PersistentVar;
 	};
 
 	// interface for accessing persistent var definitions
@@ -222,6 +223,7 @@ namespace ModdedPersistence
 		bool ParseVarDefinition(const std::string& line, const char* owningModName, std::map<size_t, ParseDefinitions::VarDef>& targetMap);
 
 		void FlattenVariables();
+		void GatherStuff(ParseDefinitions::VarDef& varDef, std::vector<std::string> prefixAliases, std::vector<std::string> dependentMods);
 		void GatherVariables(
 			const std::map<size_t, ParseDefinitions::VarDef>& sourceVarDefs,
 			std::map<size_t, PersistentVarDefinition>& targetVarDefs,
@@ -232,8 +234,11 @@ namespace ModdedPersistence
 		bool m_finalised = false;
 		// stores the current modded pdef, reloaded on map change
 		std::map<size_t, PersistentVarDefinition> m_persistentVarDefs;
-		// todo: change this to be a vector of the definitions, alongside a map of hashes to pointers/references
-		// then on flattening, make aliases for enum arrays (they can be indexed by string or by integer)
+
+		// this is to handle aliases i.e thing[enumMember] and thing[1]
+		// key is hash, index is index into vector
+		std::map<size_t, size_t> m_varDefLookup;
+		std::vector<PersistentVarDefinition> m_persistentVars;
 
 		// all currently known persistence types (except basic types e.g int)
 		std::map<size_t, std::shared_ptr<ParseDefinitions::TypeDef>> m_types;
