@@ -14,6 +14,8 @@ REPLACE_SQCLASSFUNC(GetPersistentVarAsInt, CPlayer, ScriptContext::SERVER)
 	const SQChar* argString = sq.getstring(sqvm, 1);
 	const size_t argStringHash = STR_HASH(argString);
 
+	spdlog::info("SERVER GetPersistentVar called: '{}'", argString);
+
 	CBasePlayer* player = nullptr;
 	sq.getthisentity(sqvm, &player); // does this actually get the right type?
 

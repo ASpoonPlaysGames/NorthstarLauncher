@@ -232,6 +232,8 @@ namespace ModdedPersistence
 		bool m_finalised = false;
 		// stores the current modded pdef, reloaded on map change
 		std::map<size_t, PersistentVarDefinition> m_persistentVarDefs;
+		// todo: change this to be a vector of the definitions, alongside a map of hashes to pointers/references
+		// then on flattening, make aliases for enum arrays (they can be indexed by string or by integer)
 
 		// all currently known persistence types (except basic types e.g int)
 		std::map<size_t, std::shared_ptr<ParseDefinitions::TypeDef>> m_types;
