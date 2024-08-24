@@ -179,7 +179,7 @@ namespace ModdedPersistence
 		std::string m_identifier;
 		const ParseDefinitions::EnumDef* m_enumType;
 		std::vector<std::string> m_dependencies;
-		int m_stringSize;
+		int m_stringSize = 0;
 	};
 
 	// interface for accessing persistent var definitions
@@ -213,7 +213,7 @@ namespace ModdedPersistence
 		// Registers a var definition, returns nullptr if a var or type with the same identifier exists
 		ParseDefinitions::VarDef* RegisterVarDefinition(ParseDefinitions::VarDef varDef);
 
-		const std::map<size_t, PersistentVarDefinition>& GetFlattenedVars() const { return m_persistentVarDefs; }
+		const std::vector<PersistentVarDefinition>& GetVars() const { return m_persistentVars; }
 
 	private:
 		PersistentVarDefinitionData() = default;
@@ -223,17 +223,13 @@ namespace ModdedPersistence
 		bool ParseVarDefinition(const std::string& line, const char* owningModName, std::map<size_t, ParseDefinitions::VarDef>& targetMap);
 
 		void FlattenVariables();
-		void GatherStuff(ParseDefinitions::VarDef& varDef, std::vector<std::string> prefixAliases, std::vector<std::string> dependentMods);
-		void GatherVariables(
-			const std::map<size_t, ParseDefinitions::VarDef>& sourceVarDefs,
-			std::map<size_t, PersistentVarDefinition>& targetVarDefs,
-			std::string idPrefix,
+		void GatherStuff(
+			const ParseDefinitions::VarDef& varDef,
+			std::vector<std::string> prefixAliases,
 			std::vector<std::string> dependentMods,
-			std::vector<size_t> structStack);
+			std::vector<std::string> structStack);
 
 		bool m_finalised = false;
-		// stores the current modded pdef, reloaded on map change
-		std::map<size_t, PersistentVarDefinition> m_persistentVarDefs;
 
 		// this is to handle aliases i.e thing[enumMember] and thing[1]
 		// key is hash, index is index into vector

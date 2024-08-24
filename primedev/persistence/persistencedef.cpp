@@ -81,19 +81,13 @@ namespace ModdedPersistence
 	} // namespace ParseDefinitions
 
 	PersistentVarDefinition::PersistentVarDefinition(VarType type, std::string identifier, std::vector<std::string>& dependencies)
-		: m_type(type)
-		, m_identifier(identifier)
-		, m_dependencies(dependencies)
-		, m_enumType(nullptr)
+		: m_type(type), m_identifier(identifier), m_dependencies(dependencies), m_enumType(nullptr)
 	{
 	}
 
 	PersistentVarDefinition::PersistentVarDefinition(
 		VarType type, std::string identifier, std::vector<std::string>& dependencies, const ParseDefinitions::EnumDef* enumType)
-		: m_type(type)
-		, m_identifier(identifier)
-		, m_dependencies(dependencies)
-		, m_enumType(enumType)
+		: m_type(type), m_identifier(identifier), m_dependencies(dependencies), m_enumType(enumType)
 	{
 	}
 
@@ -153,13 +147,20 @@ namespace ModdedPersistence
 
 	PersistentVarDefinition* PersistentVarDefinitionData::FindVarDefinition(const char* name)
 	{
-		// for some reason, vanilla allows a def like "int xp" to be accessed though "xp[0]"? bit weird but ig i have to support it.
-		std::string fixedName = std::regex_replace(name, DUMB_ARRAY_THING_RGX, "$1[0]");
+		const size_t nameHash = STR_HASH(name);
+		auto foundVarAlias = m_varDefLookup.find(nameHash);
+		if (foundVarAlias == m_varDefLookup.end())
+			return nullptr;
 
-		const size_t nameHash = STR_HASH(fixedName);
-		auto var = m_persistentVarDefs.find(nameHash);
+		auto varIndex = foundVarAlias->second;
+		if (varIndex >= m_persistentVars.size())
+		{
+			spdlog::error("Found variable alias for '{}' but index was out of range?", name);
+			return nullptr;
+		}
 
-		return var != m_persistentVarDefs.end() ? &var->second : nullptr;
+		auto& var = m_persistentVars[varIndex];
+		return &var;
 	}
 
 	bool PersistentVarDefinitionData::LoadPersistenceBase(std::stringstream& stream)
@@ -175,28 +176,18 @@ namespace ModdedPersistence
 
 	void PersistentVarDefinitionData::Finalise()
 	{
-		//LogVarDefinitions();
+		// LogVarDefinitions();
 
-		// flatten variables and populate m_persistentVarDefs
 
 		FlattenVariables();
-
-		//spdlog::warn("\n\n");
-		//spdlog::warn("PRINTING FLATTENED:");
-
-		//for (auto& [hash, var] : m_persistentVarDefs)
-		//{
-		//	spdlog::warn(var.GetIdentifier());
-		//}
-
-		//spdlog::warn("\n\n");
 
 		m_finalised = true;
 	}
 
 	void PersistentVarDefinitionData::Clear()
 	{
-		m_persistentVarDefs.clear();
+		m_varDefLookup.clear();
+		m_persistentVars.clear();
 		m_vars.clear();
 		m_types.clear();
 		// todo: clear persistent data as well since that will point to garbage now
@@ -482,135 +473,15 @@ namespace ModdedPersistence
 
 	void PersistentVarDefinitionData::FlattenVariables()
 	{
-		GatherVariables(m_vars, m_persistentVarDefs, "", {}, {});
 		for (auto& [hash, var] : m_vars)
-			GatherStuff(var, {""}, {});
-	}
-
-	void PersistentVarDefinitionData::GatherVariables(
-		const std::map<size_t, ParseDefinitions::VarDef>& sourceVarDefs,
-		std::map<size_t, PersistentVarDefinition>& targetVarDefs,
-		std::string idPrefix,
-		std::vector<std::string> dependentMods,
-		std::vector<size_t> structStack)
-	{
-		for (auto& [idHash, varDef] : sourceVarDefs)
-		{
-			std::string varDefIdStr = std::format("{}{}", idPrefix, varDef.GetIdentifier());
-			std::vector<std::string> varDependentMods = dependentMods;
-			if (varDef.GetOwner() == "") // no mod owner, vanilla def
-				varDependentMods.push_back(varDef.GetOwner());
-
-			// find array size
-			std::vector<std::string> arrayMembers;
-			std::string arraySize = varDef.GetArraySize();
-			if (arraySize.empty())
-			{
-				arrayMembers = {"0"};
-			}
-			else if (auto* typeDef = GetTypeDefinition(arraySize.c_str()); typeDef != nullptr)
-			{
-				// found type, make sure its en enum
-				const ParseDefinitions::EnumDef* enumDef = dynamic_cast<ParseDefinitions::EnumDef*>(typeDef);
-				if (enumDef == nullptr)
-				{
-					spdlog::error("Invalid array size '{}' for variable '{}' ({})", arraySize, varDefIdStr, varDef.GetOwner());
-					spdlog::error(varDef.ToString());
-					continue;
-				}
-
-				// add each enum member to array member strings
-				const int memberCount = enumDef->GetMemberCount();
-				for (int i = 0; i < memberCount; ++i)
-					arrayMembers.push_back(enumDef->GetMemberName(i));
-			}
-			else if (arraySize.find_first_not_of("0123456789") == std::string::npos)
-			{
-				// found number, construct array member strings
-				const int arraySizeInt = std::stoi(arraySize);
-				for (int i = 0; i < arraySizeInt; ++i)
-					arrayMembers.push_back(std::to_string(i));
-			}
-
-			// loop over array members
-			for (auto& arrayMember : arrayMembers)
-			{
-				const char* typeStr = varDef.GetType();
-				std::string idStr = varDefIdStr;
-				idStr.append(std::format("[{}]", arrayMember));
-
-				VarType targetType = VarType::INVALID;
-
-				// no switch on string in C++ :(
-				if (!strcmp(typeStr, "bool"))
-				{
-					targetType = VarType::BOOL;
-				}
-				else if (!strcmp(typeStr, "int"))
-				{
-					targetType = VarType::INT;
-				}
-				else if (!strcmp(typeStr, "float"))
-				{
-					targetType = VarType::FLOAT;
-				}
-				else if (!strcmp(typeStr, "string"))
-				{
-					targetType = VarType::STRING;
-				}
-
-				if (targetType != VarType::INVALID)
-				{
-					PersistentVarDefinition toAdd(targetType, idStr, varDependentMods);
-					if (targetType == VarType::STRING)
-						toAdd.SetStringSize(varDef.GetNativeArraySize());
-
-					targetVarDefs.emplace(STR_HASH(idStr), toAdd);
-
-					continue;
-				}
-
-				auto* typeDef = GetTypeDefinition(typeStr);
-
-				if (typeDef == nullptr)
-				{
-					spdlog::error("Var type not found: {}", typeStr);
-					continue;
-				}
-
-				const ParseDefinitions::EnumDef* enumDef = dynamic_cast<ParseDefinitions::EnumDef*>(typeDef);
-				if (enumDef != nullptr)
-				{
-					PersistentVarDefinition toAdd(VarType::ENUM, idStr, varDependentMods, enumDef);
-					targetVarDefs.emplace(STR_HASH(idStr), toAdd);
-					continue;
-				}
-
-				const ParseDefinitions::StructDef* structDef = dynamic_cast<ParseDefinitions::StructDef*>(typeDef);
-				if (structDef != nullptr)
-				{
-					const size_t curStructId = STR_HASH(typeStr);
-					// check for looping definitions
-					for (size_t structId : structStack)
-					{
-						if (structId == curStructId)
-						{
-							spdlog::error("Circular struct definition detected: {} defines a member of it's own type", typeStr);
-							continue;
-						}
-					}
-
-					structStack.push_back(curStructId);
-					GatherVariables(structDef->GetMembers(), targetVarDefs, idStr + ".", varDependentMods, structStack);
-					structStack.pop_back();
-					continue;
-				}
-			}
-		}
+			GatherStuff(var, {""}, {}, {});
 	}
 
 	void PersistentVarDefinitionData::GatherStuff(
-		ParseDefinitions::VarDef& varDef, std::vector<std::string> prefixAliases, std::vector<std::string> dependentMods)
+		const ParseDefinitions::VarDef& varDef,
+		std::vector<std::string> prefixAliases,
+		std::vector<std::string> dependentMods,
+		std::vector<std::string> structStack)
 	{
 		std::vector<std::vector<std::string>> suffixAliasesVec;
 
@@ -626,7 +497,12 @@ namespace ModdedPersistence
 			const ParseDefinitions::EnumDef* enumDef = dynamic_cast<ParseDefinitions::EnumDef*>(typeDef);
 			if (enumDef == nullptr)
 			{
-				spdlog::error("Invalid array size '{}' for variable '{}{}' ({})", arraySize, prefixAliases[0], varDef.GetIdentifier(), varDef.GetOwner());
+				spdlog::error(
+					"Invalid array size '{}' for variable '{}{}' ({})",
+					arraySize,
+					prefixAliases[0],
+					varDef.GetIdentifier(),
+					varDef.GetOwner());
 				spdlog::error(varDef.ToString());
 				return;
 			}
@@ -635,7 +511,8 @@ namespace ModdedPersistence
 			const int memberCount = enumDef->GetMemberCount();
 			for (int i = 0; i < memberCount; ++i)
 			{
-				suffixAliasesVec.push_back({enumDef->GetMemberName(i), std::to_string(i)});
+				// important that the enum member string comes first since we prefer that when storing pdata
+				suffixAliasesVec.push_back({std::format("[{}]", enumDef->GetMemberName(i)), std::format("[{}]", std::to_string(i))});
 			}
 		}
 		else if (arraySize.find_first_not_of("0123456789") == std::string::npos)
@@ -643,13 +520,21 @@ namespace ModdedPersistence
 			// found number, construct array member strings
 			const int arraySizeInt = std::stoi(arraySize);
 			for (int i = 0; i < arraySizeInt; ++i)
-				suffixAliasesVec.push_back({std::to_string(i)});
-
+				suffixAliasesVec.push_back({std::format("[{}]", std::to_string(i))});
 		}
+
+		// add our dependency
+		if (strcmp(varDef.GetOwner(), ""))
+			dependentMods.push_back(varDef.GetOwner());
 
 		// iterate over each suffix alias collection
 		for (auto& suffixAliases : suffixAliasesVec)
 		{
+			// the chosen "true identifier" for the variable is the first prefix/suffix combination. This is the identifier that will end up being referenced in pdata.
+			assert(prefixAliases.size() > 0);
+			assert(suffixAliases.size() > 0);
+			const std::string identifier = std::format("{}{}{}", prefixAliases[0], varDef.GetIdentifier(), suffixAliases[0]);
+
 			const char* typeStr = varDef.GetType();
 
 			VarType targetType = VarType::INVALID;
@@ -674,7 +559,7 @@ namespace ModdedPersistence
 
 			if (targetType != VarType::INVALID)
 			{
-				PersistentVarDefinition toAdd(targetType, varDef.GetIdentifier(), dependentMods);
+				PersistentVarDefinition toAdd(targetType, identifier, dependentMods);
 				if (targetType == VarType::STRING)
 					toAdd.SetStringSize(varDef.GetNativeArraySize());
 
@@ -692,6 +577,75 @@ namespace ModdedPersistence
 				continue;
 			}
 
+			// handle enums and structs
+			auto* typeDef = GetTypeDefinition(typeStr);
+
+			if (typeDef == nullptr)
+			{
+				spdlog::error("Var type not found: {}", typeStr);
+				continue;
+			}
+
+			const ParseDefinitions::EnumDef* enumDef = dynamic_cast<ParseDefinitions::EnumDef*>(typeDef);
+			if (enumDef != nullptr)
+			{
+				PersistentVarDefinition toAdd(VarType::ENUM, identifier, dependentMods, enumDef);
+
+				// add all aliases to the lookup table and add the new var
+				for (std::string& prefix : prefixAliases)
+				{
+					for (std::string& suffix : suffixAliases)
+					{
+						std::string alias = std::format("{}{}{}", prefix, varDef.GetIdentifier(), suffix);
+						m_varDefLookup.emplace(STR_HASH(alias), m_persistentVars.size());
+					}
+				}
+				m_persistentVars.push_back(toAdd);
+
+				continue;
+			}
+
+			const ParseDefinitions::StructDef* structDef = dynamic_cast<ParseDefinitions::StructDef*>(typeDef);
+			if (structDef != nullptr)
+			{
+				// check for looping definitions
+				for (std::string& structId : structStack)
+				{
+					if (structId == typeStr)
+					{
+						std::string structStackStr;
+						bool isFirst = true;
+						for (std::string& structName : structStack)
+						{
+							if (!isFirst)
+								structStackStr.append(" -> ");
+							structStackStr.append(structName);
+
+							isFirst = false;
+						}
+						spdlog::error("Circular struct definition detected: {}", structStackStr);
+						continue;
+					}
+				}
+
+				// gather prefixes aliases for the struct's children
+				decltype(prefixAliases) newPrefixes;
+				for (std::string& prefix : prefixAliases)
+				{
+					for (std::string& suffix : suffixAliases)
+					{
+						newPrefixes.push_back(std::format("{}{}{}.", prefix, varDef.GetIdentifier(), suffix));
+					}
+				}
+
+				structStack.push_back(typeStr);
+				for (auto& [hash, member] : structDef->GetMembers())
+				{
+					GatherStuff(member, newPrefixes, dependentMods, structStack);
+				}
+				structStack.pop_back();
+				continue;
+			}
 		}
 	}
 

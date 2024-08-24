@@ -33,6 +33,7 @@ REPLACE_SQCLASSFUNC(GetPersistentVarAsInt, CPlayer, ScriptContext::SERVER)
 	if (varDef == nullptr)
 		spdlog::error("Couldn't find def {}?", argString);
 
+	// todo: if type is enum check modded first, before getting vanilla as a fallback
 	if (varDef == nullptr || (varDef->IsVanillaDef() && varDef->GetType() != VarType::ENUM))
 		return sq.m_funcOriginals["CPlayer.GetPersistentVarAsInt"](sqvm);
 

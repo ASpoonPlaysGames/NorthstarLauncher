@@ -374,8 +374,9 @@ namespace ModdedPersistence
 		// add empty entries for any var defs that we don't have data for
 		auto& pdef = *PersistentVarDefinitionData::GetInstance();
 
-		for (auto& [hash, varDef] : pdef.GetFlattenedVars())
+		for (auto& varDef : pdef.GetVars())
 		{
+			const size_t hash = STR_HASH(varDef.GetIdentifier());
 			// vanilla defs that aren't enum values will never need modded data
 			// todo: unless they are in a group with a modded value
 			if (varDef.IsVanillaDef() && varDef.GetType() != VarType::ENUM)
