@@ -5,7 +5,7 @@
 #include <variant>
 #include <map>
 #include <string>
-#include "server/r2server.h"
+#include "engine/r2engine.h"
 
 namespace ModdedPersistence
 {
@@ -114,7 +114,7 @@ namespace ModdedPersistence
 		PersistenceDataInstance();
 
 		bool ParseFile(std::istream& stream);
-		void Finalise(std::vector<Mod>& loadedMods);
+		void ProcessData(std::vector<Mod>& loadedMods);
 
 		bool ToStream(std::ostream& stream);
 	private:
@@ -136,20 +136,19 @@ namespace ModdedPersistence
 	{
 	public:
 		static PersistentVarData* GetInstance();
-		PersistenceDataInstance* GetDataForPlayer(CBasePlayer* player);
+		PersistenceDataInstance* GetDataForPlayer(CBaseClient* player);
 
-		// loads persistence for the given player
-		bool Load(CBasePlayer* player, void* data);
-		// clears all loaded persistence data for the given player
-		void Clear(void* player);
-		// clears all loaded persistence data
-		void ClearAll();
+		bool AddClient(CBaseClient* client);
+		bool LoadData(CBaseClient* client, std::istream& stream);
+		bool WriteData(CBaseClient* client, std::ostream& stream);
+		void ClearData(CBaseClient* client);
+		void ClearAllData();
 
 	private:
 		PersistentVarData() = default;
 
 		// key being something related to the client, todo
-		std::unordered_map<void*, std::shared_ptr<PersistenceDataInstance>> m_persistenceData;
+		std::unordered_map<CBaseClient*, std::shared_ptr<PersistenceDataInstance>> m_persistenceData;
 	};
 
 } // namespace ModdedPersistence

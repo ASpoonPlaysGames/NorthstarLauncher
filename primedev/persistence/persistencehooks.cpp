@@ -16,12 +16,12 @@ REPLACE_SQCLASSFUNC(GetPersistentVarAsInt, CPlayer, ScriptContext::SERVER)
 
 	spdlog::info("SERVER GetPersistentVar called: '{}'", argString);
 
-	CBasePlayer* player = nullptr;
+	CBaseClient* player = nullptr;
 	sq.getthisentity(sqvm, &player); // does this actually get the right type?
 
-	//auto* playerData = varData.GetDataForPlayer(player);
-	//if (playerData == nullptr)
-	//	spdlog::error("no modded data found for player {}", player->m_nPlayerIndex);
+	auto* playerData = varData.GetDataForPlayer(player);
+	if (playerData == nullptr)
+		spdlog::error("no modded data found for player {}", player->m_Name);
 
 	// find var in modded pdef
 	PersistentVarDefinition* varDef = varDefData.FindVarDefinition(argString);
@@ -33,7 +33,7 @@ REPLACE_SQCLASSFUNC(GetPersistentVarAsInt, CPlayer, ScriptContext::SERVER)
 	if (varDef == nullptr)
 		spdlog::error("Couldn't find def {}?", argString);
 
-	// todo: if type is enum check modded first, before getting vanilla as a fallback
+	// todo: always prefer a modded value if one exists.
 	if (varDef == nullptr || (varDef->IsVanillaDef() && varDef->GetType() != VarType::ENUM))
 		return sq.m_funcOriginals["CPlayer.GetPersistentVarAsInt"](sqvm);
 

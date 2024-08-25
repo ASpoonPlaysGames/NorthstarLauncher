@@ -13,6 +13,7 @@
 #include "engine/r2engine.h"
 #include "client/r2client.h"
 #include "server/r2server.h"
+#include "persistence/persistencedata.h"
 
 #include <fstream>
 #include <filesystem>
@@ -147,7 +148,19 @@ void ServerAuthenticationManager::AuthenticatePlayer(CBaseClient* pPlayer, uint6
 			// copy pdata into buffer
 			memcpy(pPlayer->m_PersistenceBuffer, authData->second.pdata, authData->second.pdataSize);
 
-			// todo: copy modded pdata into buffer
+			auto* pDataManager = ModdedPersistence::PersistentVarData::GetInstance();
+			pDataManager->AddClient(pPlayer);
+			// todo: read modded pdata from atlas buffer
+			// temp: read from disk
+			auto path = fs::path(std::format("{}/test", GetNorthstarPrefix()));
+			//fs::create_directories(path);
+			std::ifstream fileStream(path / std::format("{}.nspdata", pPlayer->m_UID).c_str(), std::fstream::binary);
+			if (fileStream.good())
+			{
+				if (!pDataManager->LoadData(pPlayer, fileStream))
+					spdlog::error("Failed to load nspdata for client {}", pPlayer->m_Name);
+				fileStream.close();
+			}
 		}
 
 		// set persistent data as ready
@@ -196,6 +209,17 @@ void ServerAuthenticationManager::WritePersistentData(CBaseClient* pPlayer)
 		g_pMasterServerManager->WritePlayerPersistentData(
 			pPlayer->m_UID, (const char*)pPlayer->m_PersistenceBuffer, m_PlayerAuthenticationData[pPlayer].pdataSize);
 		// todo: write modded persistent data
+		auto* pDataManager = ModdedPersistence::PersistentVarData::GetInstance();
+		// temp: write to disk
+		auto path = fs::path(std::format("{}/test", GetNorthstarPrefix()));
+		fs::create_directories(path);
+		std::ofstream fileStream(path / std::format("{}.nspdata", pPlayer->m_UID).c_str(), std::fstream::binary);
+		if (fileStream.good())
+		{
+			if (!pDataManager->WriteData(pPlayer, fileStream))
+				spdlog::error("Failed to write nspdata for client {}", pPlayer->m_Name);
+			fileStream.close();
+		}
 	}
 	else if (Cvar_ns_auth_allow_insecure_write->GetBool())
 	{

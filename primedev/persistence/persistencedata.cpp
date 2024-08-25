@@ -203,7 +203,7 @@ namespace ModdedPersistence
 		return true;
 	}
 
-	void PersistenceDataInstance::Finalise(std::vector<Mod>& loadedMods)
+	void PersistenceDataInstance::ProcessData(std::vector<Mod>& loadedMods)
 	{
 		std::map<size_t, bool> enabledMods;
 		for (auto& mod : loadedMods)
@@ -444,12 +444,61 @@ namespace ModdedPersistence
 		return instance;
 	}
 
-	PersistenceDataInstance* PersistentVarData::GetDataForPlayer(CBasePlayer* player)
+	PersistenceDataInstance* PersistentVarData::GetDataForPlayer(CBaseClient* player)
 	{
 		auto it = m_persistenceData.find(player);
 		if (it != m_persistenceData.end())
 			return it->second.get();
 		return nullptr;
+	}
+
+	bool PersistentVarData::AddClient(CBaseClient* client)
+	{
+		auto [pair, isNew] = m_persistenceData.emplace(client, std::make_shared<PersistenceDataInstance>(PersistenceDataInstance()));
+		if (!isNew)
+		{
+			spdlog::error("Client {} is already registered in modded pdata", client->m_Name);
+			return false;
+		}
+		return true;
+	}
+
+	bool PersistentVarData::LoadData(CBaseClient* client, std::istream& stream)
+	{
+		auto it = m_persistenceData.find(client);
+		if (it == m_persistenceData.end())
+		{
+			spdlog::error("Client {} is not registered in modded pdata", client->m_Name);
+			return false;
+		}
+
+		auto* dataInstance = it->second.get();
+		if (!dataInstance->ParseFile(stream))
+		{
+			spdlog::error("Failed to parse modded pdata stream for client {}", client->m_Name);
+			return false;
+		}
+
+		return true;
+	}
+
+	bool PersistentVarData::WriteData(CBaseClient* client, std::ostream& stream)
+	{
+		auto it = m_persistenceData.find(client);
+		if (it == m_persistenceData.end())
+		{
+			spdlog::error("Client {} is not registered in modded pdata", client->m_Name);
+			return false;
+		}
+
+		auto* dataInstance = it->second.get();
+		if (!dataInstance->ToStream(stream))
+		{
+			spdlog::error("Failed to write modded pdata to stream for client {}", client->m_Name);
+			return false;
+		}
+
+		return true;
 	}
 
 } // namespace ModdedPersistence
