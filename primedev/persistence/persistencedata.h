@@ -147,7 +147,6 @@ namespace ModdedPersistence
 	private:
 		PersistentVarData() = default;
 
-		// key being something related to the client, todo
 		std::unordered_map<CBaseClient*, std::shared_ptr<PersistenceDataInstance>> m_persistenceData;
 	};
 
