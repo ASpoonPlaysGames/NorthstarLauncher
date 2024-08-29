@@ -62,6 +62,7 @@ namespace ModdedPersistence
 			VarType type;
 			StrIdx name;
 			std::vector<DataVariablePossibility> possibilities;
+			DataVariablePossibility* currentChosenPossibility = nullptr;
 		};
 
 		struct DataGroupMember

@@ -335,6 +335,7 @@ namespace ModdedPersistence
 				}
 			}
 
+			variable.currentChosenPossibility = bestPossibility;
 			// no valid possibility for this variable, skip loading it
 			if (bestPossibility == nullptr)
 				continue;
@@ -396,7 +397,8 @@ namespace ModdedPersistence
 				// validate type
 				if (varDef.GetType() != variable.m_type)
 				{
-					spdlog::error("{} pdef/pdata type mismatch ({} vs {}) data will be lost.", variable.m_name, varDef.GetType(), variable.m_type);
+					spdlog::error(
+						"{} pdef/pdata type mismatch ({} vs {}) data will be lost.", variable.m_name, varDef.GetType(), variable.m_type);
 					variable.m_type = varDef.GetType();
 					ResetToDefault(variable);
 				}
@@ -422,6 +424,44 @@ namespace ModdedPersistence
 		// create group if group doesnt exist
 
 		// remember to override the currently selected possibility or create one if one didnt exist
+
+		for (auto& [hash, variable] : m_flattened)
+		{
+			// todo: account for grouped variables.
+
+			// find existing variable
+			auto it = std::find_if(
+				m_variables.begin(),
+				m_variables.end(),
+				[&](ParseDefinitions::DataVariable& it) { return m_strings[it.name] == variable.m_name; });
+
+			if (it == m_variables.end())
+			{
+				// didnt find, need to add variable
+			}
+			else
+			{
+				// update possibilities
+
+				// update chosen possibility from when we loaded data
+				if (it->currentChosenPossibility != nullptr)
+				{
+					auto& oldData = *it->currentChosenPossibility;
+					// update value
+					// update dependency (if any)
+				}
+				else
+				{
+					// add new possibility
+				}
+
+				// remove any conflicting possibilities (current data takes precendence)
+
+			}
+
+		}
+
+		// todo: clean up strings vector and fix StrIdx values accordingly
 	}
 
 	PersistentVarData* PersistentVarData::GetInstance()
@@ -478,6 +518,8 @@ namespace ModdedPersistence
 			spdlog::error("Failed to parse modded pdata stream for client {}", client->m_Name);
 			return false;
 		}
+
+		dataInstance->ProcessData(g_pModManager->m_LoadedMods);
 
 		return true;
 	}
