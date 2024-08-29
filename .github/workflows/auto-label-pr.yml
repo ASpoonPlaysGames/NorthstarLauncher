@@ -2,7 +2,7 @@ name: "Pull Request Labeler"
 on:
 - pull_request_target
 
-# this is an unnecessary comment
+# this is an unnecessary comment but it lets me commit stuff
 jobs:
   labeler:
     permissions:
