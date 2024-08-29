@@ -2,6 +2,7 @@ name: "Pull Request Labeler"
 on:
 - pull_request_target
 
+# this is an unnecessary comment used so i can make a PR
 jobs:
   labeler:
     permissions:
