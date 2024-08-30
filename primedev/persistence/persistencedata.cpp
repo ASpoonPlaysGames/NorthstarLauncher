@@ -414,9 +414,7 @@ namespace ModdedPersistence
 
 	void PersistenceDataInstance::CommitChanges()
 	{
-		// todo: implement
 		// todo: remember to create groups if they are needed
-		// todo: remember to fix up strings vector and set StrIdx values
 
 		// go through each variable
 		// check if should be grouped
@@ -430,38 +428,120 @@ namespace ModdedPersistence
 			// todo: account for grouped variables.
 
 			// find existing variable
-			auto it = std::find_if(
-				m_variables.begin(),
-				m_variables.end(),
-				[&](ParseDefinitions::DataVariable& it) { return m_strings[it.name] == variable.m_name; });
+			auto pred = [&](ParseDefinitions::DataVariable& it) -> bool { return m_strings[it.name] == variable.m_name; };
+
+			auto it = std::find_if(m_variables.begin(), m_variables.end(), pred);
 
 			if (it == m_variables.end())
 			{
-				// didnt find, need to add variable
+				// didnt find, need to add a new variable
+				ParseDefinitions::DataVariable newVar {};
+				newVar.name = m_strings.size();
+				m_strings.push_back(variable.m_name);
+				newVar.type = variable.m_type;
+				newVar.currentChosenPossibility = nullptr;
+				m_variables.push_back(newVar);
+				it = --m_variables.end();
 			}
-			else
+
+			// update possibilities
+
+			// create a new possibility if none are currently chosen
+			if (it->currentChosenPossibility == nullptr)
 			{
-				// update possibilities
-
-				// update chosen possibility from when we loaded data
-				if (it->currentChosenPossibility != nullptr)
-				{
-					auto& oldData = *it->currentChosenPossibility;
-					// update value
-					// update dependency (if any)
-				}
-				else
-				{
-					// add new possibility
-				}
-
-				// remove any conflicting possibilities (current data takes precendence)
-
+				it->possibilities.push_back({});
+				it->currentChosenPossibility = &it->possibilities.back();
 			}
 
+			auto& chosenPossibility = *it->currentChosenPossibility;
+			// update value
+			switch (variable.m_type)
+			{
+			case VarType::INT:
+				chosenPossibility.value.asInt = std::get<int>(variable.m_value);
+				break;
+			case VarType::FLOAT:
+				chosenPossibility.value.asFloat = std::get<float>(variable.m_value);
+				break;
+			case VarType::BOOL:
+				chosenPossibility.value.asBool = std::get<bool>(variable.m_value);
+				break;
+			case VarType::STRING:
+				chosenPossibility.value.asString = m_strings.size();
+				m_strings.push_back(std::get<std::string>(variable.m_value));
+				break;
+			case VarType::ENUM:
+				chosenPossibility.value.asEnum = m_strings.size();
+				m_strings.push_back(std::get<std::string>(variable.m_value));
+				break;
+			default:
+				spdlog::error("Invalid VarType: {}", variable.m_type);
+				continue;
+			}
+
+			// todo: update dependency (if any)
+			chosenPossibility.dependency = -1;
+
+			// remove any conflicting possibilities (current data takes precendence)
+			auto removePred = [&](ParseDefinitions::DataVariablePossibility& possibility) -> bool
+			{
+				if (&possibility == &chosenPossibility)
+					return false;
+				if (possibility.dependency == -1)
+					return possibility.dependency == chosenPossibility.dependency;
+				// have to check the strings since we haven't yet cleaned up any duplicates etc.
+				std::string& str1 = m_strings[possibility.dependency];
+				std::string& str2 = m_strings[chosenPossibility.dependency];
+				return str1 == str2;
+			};
+			auto& possibilities = it->possibilities;
+			possibilities.erase(std::remove_if(possibilities.begin(), possibilities.end(), removePred), possibilities.end());
 		}
 
 		// todo: clean up strings vector and fix StrIdx values accordingly
+
+		// iterate over all strings
+		for (auto firstIt = m_strings.begin(); firstIt != m_strings.end(); ++firstIt)
+		{
+			// remove any strings past it that match it
+			for (auto secondIt = firstIt + 1; secondIt != m_strings.end(); ++secondIt)
+			{
+				if (*secondIt != *firstIt)
+					continue;
+
+				StrIdx removeTarget = secondIt - m_strings.begin();
+				StrIdx replaceWith = firstIt - m_strings.begin();
+
+				// when removing a string, find any StrIdx values that reference it, and change them to point to the other one
+				// also decrement all other StrIdx values that are > the index
+				for (auto& variable : m_variables)
+				{
+					for (auto& possibility : variable.possibilities)
+					{
+						if (possibility.dependency == removeTarget)
+							possibility.dependency = replaceWith;
+						else if (possibility.dependency > removeTarget)
+							--possibility.dependency;
+					}
+				}
+				for (auto& group : m_groups)
+				{
+					for (auto& possibility : group.possibilities)
+					{
+						for (StrIdx& dependency : possibility.dependencies)
+						{
+							if (dependency == removeTarget)
+								dependency = replaceWith;
+							else if (dependency > removeTarget)
+								--dependency;
+						}
+					}
+				}
+
+				// decrement to avoid skipping one next iteration since we are removing ourselves
+				m_strings.erase(secondIt--);
+			}
+		}
 	}
 
 	PersistentVarData* PersistentVarData::GetInstance()
