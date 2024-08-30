@@ -161,6 +161,7 @@ void ServerAuthenticationManager::AuthenticatePlayer(CBaseClient* pPlayer, uint6
 					spdlog::error("Failed to load nspdata for client {}", pPlayer->m_Name);
 				fileStream.close();
 			}
+			pDataManager->ProcessData(pPlayer, g_pModManager->m_LoadedMods);
 		}
 
 		// set persistent data as ready

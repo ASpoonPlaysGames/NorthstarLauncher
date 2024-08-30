@@ -16,8 +16,15 @@ REPLACE_SQCLASSFUNC(GetPersistentVarAsInt, CPlayer, ScriptContext::SERVER)
 
 	spdlog::info("SERVER GetPersistentVar called: '{}'", argString);
 
-	CBaseClient* player = nullptr;
-	sq.getthisentity(sqvm, &player); // does this actually get the right type?
+	__int64 unk = 0;
+	if (!sq.getthisentity(sqvm, &unk))
+	{
+		spdlog::error("Couldn't getthisentity?");
+		return SQRESULT_ERROR;
+	}
+	int index = *(int*)(unk + 0x58) - 1;
+
+	CBaseClient* player = &g_pClientArray[index];
 
 	auto* playerData = varData.GetDataForPlayer(player);
 	if (playerData == nullptr)
@@ -38,17 +45,22 @@ REPLACE_SQCLASSFUNC(GetPersistentVarAsInt, CPlayer, ScriptContext::SERVER)
 		return sq.m_funcOriginals["CPlayer.GetPersistentVarAsInt"](sqvm);
 
 	// if found, check if var can be got as an int
-	//if (IsValidAsInteger(varDef->GetType()))
-	//{
-	//	// if valid, get as int and push to squirrel
-	//	PersistentVar& varValue = varData.GetVar(player, argString);
-	//	sq.pushinteger(sqvm, varValue.GetAsInteger());
-	//	return SQRESULT_NOTNULL;
-	//}
+	if (IsValidAsInteger(varDef->GetType()))
+	{
+		// if valid, get as int and push to squirrel
+		auto* var = playerData->GetVariable(STR_HASH(varDef->GetIdentifier()));
+		if (var == nullptr)
+		{
+			spdlog::error("UHH WHY CANT I FIND THIS VAR?????? {}", varDef->GetIdentifier());
+			return SQRESULT_NULL;
+		}
+		spdlog::warn("found var: {}", var->m_name);
+		sq.pushinteger(sqvm, std::get<int>(var->m_value));
+		return SQRESULT_NOTNULL;
+	}
 
 	spdlog::warn("Invalid modded var to retrieve as int '{}'", argString);
 	return SQRESULT_NULL;
-	
 }
 
 REPLACE_SQCLASSFUNC(GetPersistentVar, CPlayer, ScriptContext::SERVER)

@@ -51,7 +51,7 @@ namespace ModdedPersistence
 
 		// read all strings
 		stream.seekg(startPos, std::ios_base::beg);
-		stream.seekg(header.groupsOffset, std::ios_base::cur);
+		stream.seekg(header.stringsOffset, std::ios_base::cur);
 		m_strings.resize(header.stringCount);
 		for (unsigned int i = 0; i < header.stringCount; ++i)
 			std::getline(stream, m_strings[i], '\00');
@@ -144,7 +144,8 @@ namespace ModdedPersistence
 		header.stringsOffset = stringOffset;
 		header.stringCount = m_strings.size();
 		for (auto& str : m_strings)
-			stream.write(str.c_str(), str.length());
+			stream.write(str.c_str(), str.length() + 1);
+
 
 		// write variables
 		auto variablesOffset = stream.tellp() - startPos;
@@ -428,7 +429,10 @@ namespace ModdedPersistence
 			// todo: account for grouped variables.
 
 			// find existing variable
-			auto pred = [&](ParseDefinitions::DataVariable& it) -> bool { return m_strings[it.name] == variable.m_name; };
+			auto pred = [&](ParseDefinitions::DataVariable& it) -> bool
+			{
+				return m_strings[it.name] == variable.m_name;
+			};
 
 			auto it = std::find_if(m_variables.begin(), m_variables.end(), pred);
 
@@ -522,6 +526,21 @@ namespace ModdedPersistence
 							possibility.dependency = replaceWith;
 						else if (possibility.dependency > removeTarget)
 							--possibility.dependency;
+
+						if (variable.type == VarType::STRING)
+						{
+							if (possibility.value.asString == removeTarget)
+								possibility.value.asString = replaceWith;
+							else if (possibility.value.asString > removeTarget)
+								--possibility.value.asString;
+						}
+						else if (variable.type == VarType::ENUM)
+						{
+							if (possibility.value.asEnum == removeTarget)
+								possibility.value.asEnum = replaceWith;
+							else if (possibility.value.asEnum > removeTarget)
+								--possibility.value.asEnum;
+						}
 					}
 				}
 				for (auto& group : m_groups)
@@ -534,6 +553,24 @@ namespace ModdedPersistence
 								dependency = replaceWith;
 							else if (dependency > removeTarget)
 								--dependency;
+						}
+
+						for (auto& member : possibility.members)
+						{
+							if (member.type == VarType::STRING)
+							{
+								if (member.value.asString == removeTarget)
+									member.value.asString = replaceWith;
+								else if (member.value.asString > removeTarget)
+									--member.value.asString;
+							}
+							else if (member.type == VarType::ENUM)
+							{
+								if (member.value.asEnum == removeTarget)
+									member.value.asEnum = replaceWith;
+								else if (member.value.asEnum > removeTarget)
+									--member.value.asEnum;
+							}
 						}
 					}
 				}
@@ -599,10 +636,22 @@ namespace ModdedPersistence
 			return false;
 		}
 
-		dataInstance->ProcessData(g_pModManager->m_LoadedMods);
-
 		return true;
 	}
+
+	void PersistentVarData::ProcessData(CBaseClient* client, std::vector<Mod>& loadedMods)
+	{
+		auto it = m_persistenceData.find(client);
+		if (it == m_persistenceData.end())
+		{
+			spdlog::error("Client {} is not registered in modded pdata", client->m_Name);
+			return;
+		}
+
+		auto* dataInstance = it->second.get();
+		dataInstance->ProcessData(loadedMods);
+	}
+
 
 	bool PersistentVarData::WriteData(CBaseClient* client, std::ostream& stream)
 	{

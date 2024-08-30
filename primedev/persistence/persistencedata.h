@@ -15,7 +15,7 @@ namespace ModdedPersistence
 
 	// enums use string in stored data, but are converted to int for querying
 	using PersistentVarTypeVariant = std::variant<bool, int, float, std::string>;
-	using StrIdx = unsigned int;
+	using StrIdx = int;
 	constexpr char NSPDATA_MAGIC[4] = {'N', 'S', 'P', 'D'};
 
 	namespace ParseDefinitions
@@ -118,6 +118,12 @@ namespace ModdedPersistence
 		void ProcessData(std::vector<Mod>& loadedMods);
 
 		bool ToStream(std::ostream& stream);
+
+		FlattenedDataVariable* GetVariable(size_t hash)
+		{
+			auto it = m_flattened.find(hash);
+			return it == m_flattened.end() ? nullptr : &it->second;
+		}
 	private:
 		// Gets all groups and variables to sort out their possibilities, sorting conflicts etc.
 		void CommitChanges();
@@ -141,6 +147,7 @@ namespace ModdedPersistence
 
 		bool AddClient(CBaseClient* client);
 		bool LoadData(CBaseClient* client, std::istream& stream);
+		void ProcessData(CBaseClient* client, std::vector<Mod>& loadedMods);
 		bool WriteData(CBaseClient* client, std::ostream& stream);
 		void ClearData(CBaseClient* client);
 		void ClearAllData();
