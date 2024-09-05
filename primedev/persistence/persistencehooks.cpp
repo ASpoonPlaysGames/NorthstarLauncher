@@ -1,9 +1,25 @@
 #include "persistencehooks.h"
-#include "persistencedata.h"
 #include "persistencedef.h"
+#include "persistencedata.h"
 #include "squirrel/squirrel.h"
 
 using namespace ModdedPersistence;
+
+static CBaseClient* GetClientEntity(ScriptContext context, HSquirrelVM* sqvm)
+{
+	auto& sq = *g_pSquirrel<context>;
+	
+	__int64 unk = 0;
+	if (!sq.getthisentity(sqvm, &unk))
+	{
+		spdlog::error("Couldn't getthisentity?");
+		return nullptr;
+	}
+	// no clue, copied from disassembly
+	int index = *(int*)(unk + 0x58) - 1;
+
+	return &g_pClientArray[index];
+}
 
 REPLACE_SQCLASSFUNC(GetPersistentVarAsInt, CPlayer, ScriptContext::SERVER)
 {
@@ -14,21 +30,18 @@ REPLACE_SQCLASSFUNC(GetPersistentVarAsInt, CPlayer, ScriptContext::SERVER)
 	const SQChar* argString = sq.getstring(sqvm, 1);
 	const size_t argStringHash = STR_HASH(argString);
 
-	spdlog::info("SERVER GetPersistentVar called: '{}'", argString);
+	spdlog::info("SERVER GetPersistentVarAsInt called: '{}'", argString);
 
-	__int64 unk = 0;
-	if (!sq.getthisentity(sqvm, &unk))
-	{
-		spdlog::error("Couldn't getthisentity?");
-		return SQRESULT_ERROR;
-	}
-	int index = *(int*)(unk + 0x58) - 1;
-
-	CBaseClient* player = &g_pClientArray[index];
+	CBaseClient* player = GetClientEntity(context, sqvm);
 
 	auto* playerData = varData.GetDataForPlayer(player);
 	if (playerData == nullptr)
 		spdlog::error("no modded data found for player {}", player->m_Name);
+
+	// todo: (long term)
+	// if we have the var def but no value for it, grab the vanilla value (if one exists) and write it to the modded data
+	// that way we slowly move over all of the player's persistence over to the modded system
+
 
 	// find var in modded pdef
 	PersistentVarDefinition* varDef = varDefData.FindVarDefinition(argString);
