@@ -2,6 +2,8 @@
 
 #include <string>
 #include <iostream>
+#include "silver-bun/module.h"
+#include "MinHook.h"
 
 //-----------------------------------------------------------------------------
 // Purpose: Init minhook

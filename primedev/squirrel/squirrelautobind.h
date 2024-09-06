@@ -16,7 +16,7 @@ extern SquirrelAutoBindContainer* g_pSqAutoBindContainer;
 class __squirrelautobind;
 
 #define ADD_SQFUNC(returnType, funcName, argTypes, helpText, runOnContext)                                                                 \
-	template <ScriptContext context> SQRESULT CONCAT2(Script_, funcName)(HSquirrelVM * sqvm);                                              \
+	template <ScriptContext context> SQRESULT CONCAT2(Script_, funcName)(HSQUIRRELVM sqvm);                                                \
 	namespace                                                                                                                              \
 	{                                                                                                                                      \
 		__squirrelautobind CONCAT2(__squirrelautobind, __LINE__)(                                                                          \
@@ -36,10 +36,10 @@ class __squirrelautobind;
 						returnType, __STR(funcName), argTypes, helpText, CONCAT2(Script_, funcName) < ScriptContext::SERVER >);            \
 			});                                                                                                                            \
 	}                                                                                                                                      \
-	template <ScriptContext context> SQRESULT CONCAT2(Script_, funcName)(HSquirrelVM * sqvm)
+	template <ScriptContext context> SQRESULT CONCAT2(Script_, funcName)(HSQUIRRELVM sqvm)
 
 #define REPLACE_SQFUNC(funcName, runOnContext)                                                                                             \
-	template <ScriptContext context> SQRESULT CONCAT2(Script_, funcName)(HSquirrelVM * sqvm);                                              \
+	template <ScriptContext context> SQRESULT CONCAT2(Script_, funcName)(HSQUIRRELVM sqvm);                                                \
 	namespace                                                                                                                              \
 	{                                                                                                                                      \
 		__squirrelautobind CONCAT2(__squirrelautobind, __LINE__)(                                                                          \
@@ -58,11 +58,11 @@ class __squirrelautobind;
 						__STR(funcName), CONCAT2(Script_, funcName) < ScriptContext::SERVER >);                                            \
 			});                                                                                                                            \
 	}                                                                                                                                      \
-	template <ScriptContext context> SQRESULT CONCAT2(Script_, funcName)(HSquirrelVM * sqvm)
+	template <ScriptContext context> SQRESULT CONCAT2(Script_, funcName)(HSQUIRRELVM sqvm)
 
 
 #define REPLACE_SQCLASSFUNC(funcName,className, runOnContext)                                                                                             \
-	template <ScriptContext context> SQRESULT CONCAT2(Script_,CONCAT2(className, funcName))(HSquirrelVM * sqvm);                                              \
+	template <ScriptContext context> SQRESULT CONCAT2(Script_,CONCAT2(className, funcName))(HSQUIRRELVM sqvm);                                              \
 	namespace                                                                                                                              \
 	{                                                                                                                                      \
 		__squirrelautobind CONCAT2(__squirrelautobind, __LINE__)(                                                                          \
@@ -81,7 +81,7 @@ class __squirrelautobind;
 						__STR(className##.##funcName), CONCAT2(Script_,CONCAT2(className, funcName)) < ScriptContext::SERVER >);                                            \
 			});                                                                                                                            \
 	}                                                                                                                                      \
-	template <ScriptContext context> SQRESULT CONCAT2(Script_,CONCAT2(className, funcName))(HSquirrelVM * sqvm)
+	template <ScriptContext context> SQRESULT CONCAT2(Script_,CONCAT2(className, funcName))(HSQUIRRELVM sqvm)
 
 class __squirrelautobind
 {

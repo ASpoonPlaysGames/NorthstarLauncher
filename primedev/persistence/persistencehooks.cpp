@@ -6,7 +6,7 @@
 using namespace ModdedPersistence;
 
 template <ScriptContext context>
-static CBaseClient* GetClientEntity(HSquirrelVM* sqvm)
+static CBaseClient* GetClientEntity(HSQUIRRELVM sqvm)
 {
 	auto& sq = *g_pSquirrel<context>;
 
