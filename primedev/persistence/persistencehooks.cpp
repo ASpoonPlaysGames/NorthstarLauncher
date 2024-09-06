@@ -5,10 +5,11 @@
 
 using namespace ModdedPersistence;
 
-static CBaseClient* GetClientEntity(ScriptContext context, HSquirrelVM* sqvm)
+template <ScriptContext context>
+static CBaseClient* GetClientEntity(HSquirrelVM* sqvm)
 {
 	auto& sq = *g_pSquirrel<context>;
-	
+
 	__int64 unk = 0;
 	if (!sq.getthisentity(sqvm, &unk))
 	{
@@ -32,7 +33,7 @@ REPLACE_SQCLASSFUNC(GetPersistentVarAsInt, CPlayer, ScriptContext::SERVER)
 
 	spdlog::info("SERVER GetPersistentVarAsInt called: '{}'", argString);
 
-	CBaseClient* player = GetClientEntity(context, sqvm);
+	CBaseClient* player = GetClientEntity<context>(sqvm);
 
 	auto* playerData = varData.GetDataForPlayer(player);
 	if (playerData == nullptr)
