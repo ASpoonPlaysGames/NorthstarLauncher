@@ -1,5 +1,6 @@
 #pragma once
 #include <vector>
+#include "core/hooks.h"
 
 typedef void (*SqAutoBindFunc)();
 

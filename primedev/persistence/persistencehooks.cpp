@@ -96,19 +96,33 @@ REPLACE_SQCLASSFUNC(GetPersistentVar, CPlayer, ScriptContext::SERVER)
 
 REPLACE_SQCLASSFUNC(SetPersistentVar, CPlayer, ScriptContext::SERVER)
 {
+	auto& varData = *PersistentVarData::GetInstance();
+	auto& varDefData = *PersistentVarDefinitionData::GetInstance();
 	auto& sq = *g_pSquirrel<context>;
 
 	const SQChar* argString = sq.getstring(sqvm, 1);
+	const size_t argStringHash = STR_HASH(argString);
+
 	spdlog::info("SERVER SetPersistentVar called: '{}'", sq.getstring(sqvm, 1));
 
-	void* player = nullptr;
-	sq.getthisentity(sqvm, &player);
+	CBaseClient* player = GetClientEntity<context>(sqvm);
+	auto* playerData = varData.GetDataForPlayer(player);
+	if (playerData == nullptr)
+		spdlog::error("no modded data found for player {}", player->m_Name);
 
 	// find var in modded pdef
+	PersistentVarDefinition* varDef = varDefData.FindVarDefinition(argString);
+
+
 	// if not found, call vanilla function and return
+
+
 	// if found, check var typing against argument (how?)
 	// sqvm->_stackOfCurrentFunction[argIndex] to get sqObject
 	// write into argument pointer
 
 	return sq.m_funcOriginals["CPlayer.SetPersistentVar"](sqvm);
+
+	//spdlog::warn("Invalid modded var to retrieve as int '{}'", argString);
+	//return SQRESULT_NULL;
 }
