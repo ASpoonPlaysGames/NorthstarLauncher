@@ -128,6 +128,11 @@ Plugin::Plugin(std::string path)
 		return;
 	}
 
+	// mod loader stuff (optional)
+	m_modLoader = (IPluginModLoader*)m_pCreateInterface(PLUGIN_MODLOADER_VERSION, 0);
+	if (m_modLoader)
+		NS::log::PLUGINSYS->info("Found mod loader plugin {}", m_name);
+
 	m_valid = true;
 }
 

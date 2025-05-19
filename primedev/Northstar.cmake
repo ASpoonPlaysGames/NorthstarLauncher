@@ -97,6 +97,7 @@ add_library(
     "plugins/interfaces/sys/ISys.cpp"
     "plugins/interfaces/IPluginId.h"
     "plugins/interfaces/IPluginCallbacks.h"
+    "plugins/interfaces/IPluginModLoader.h"
     "plugins/plugins.cpp"
     "plugins/plugins.h"
     "plugins/pluginmanager.h"
@@ -185,7 +186,7 @@ add_library(
     "dllmain.cpp"
     "ns_version.h"
     "Northstar.def"
-    )
+     "plugins/interfaces/IPluginModLoader.h")
 
 target_link_libraries(
     NorthstarDLL

@@ -3,6 +3,7 @@
 #include "plugins/interfaces/interface.h"
 #include "plugins/interfaces/IPluginId.h"
 #include "plugins/interfaces/IPluginCallbacks.h"
+#include "plugins/interfaces/IPluginModLoader.h"
 
 class Plugin
 {
@@ -10,6 +11,7 @@ private:
 	CreateInterfaceFn m_pCreateInterface;
 	IPluginId* m_pluginId = 0;
 	IPluginCallbacks* m_callbacks = 0;
+	IPluginModLoader* m_modLoader = nullptr;
 
 	std::shared_ptr<ColoredLogger> m_logger;
 
