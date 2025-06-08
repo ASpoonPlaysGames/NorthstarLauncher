@@ -512,8 +512,6 @@ void ModManager::LoadMods()
 		}
 	}
 
-
-
 	// in a seperate loop because we register mod files in reverse order, since mods loaded later should have their files prioritised
 	for (int64_t i = m_LoadedMods.size() - 1; i > -1; i--)
 	{
