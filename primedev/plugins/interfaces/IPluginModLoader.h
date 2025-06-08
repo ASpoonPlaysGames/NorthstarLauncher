@@ -6,9 +6,8 @@
 class IPluginModLoader
 {
 public:
-	virtual uint32_t LoadMods() = 0; // load all mod manifests and return the count
-	virtual const char* GetModManifest(uint32_t index) = 0; // get a mod's manifest by index
-	// todo: get special load func by string?
+	virtual uint32_t RefreshModPaths() = 0; // collects all possible mod locations, returning the count
+	virtual const char* GetModDirectory(uint32_t index) = 0; // gets a mod location by index
 };
 
 #endif

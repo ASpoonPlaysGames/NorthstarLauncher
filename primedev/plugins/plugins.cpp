@@ -247,3 +247,18 @@ void Plugin::RunFrame() const
 {
 	m_callbacks->RunFrame();
 }
+
+bool Plugin::IsModLoader() const
+{
+	return m_modLoader != nullptr;
+}
+
+uint32_t Plugin::RefreshModPaths() const
+{
+	return m_modLoader->RefreshModPaths();
+}
+
+const char* Plugin::GetModDirectory(uint32_t index) const
+{
+	return m_modLoader->GetModDirectory(index);
+}

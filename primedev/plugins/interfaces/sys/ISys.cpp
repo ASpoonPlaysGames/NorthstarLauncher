@@ -3,6 +3,7 @@
 #include "ISys.h"
 #include "plugins/plugins.h"
 #include "plugins/pluginmanager.h"
+#include "config/profile.h"
 
 class CSys : public ISys
 {
@@ -61,6 +62,15 @@ public:
 		{
 			NS::log::PLUGINSYS->warn("Attempted to reload plugin with invalid handle {}", static_cast<void*>(handle));
 		}
+	}
+
+	const char* GetProfilePrefix()
+	{
+		// I'd prefer to use profile.h's GetNorthstarPrefix but that creates a copy of the string, which will then go out of scope immediately.
+		// todo: change GetNorthstarPrefix to return a reference, that way the const char* will stay valid until the string is modified
+		// which is a much longer lifetime.
+
+		return NORTHSTAR_FOLDER_PREFIX.c_str();
 	}
 };
 

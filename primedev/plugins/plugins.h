@@ -50,4 +50,9 @@ public:
 	void OnSqvmDestroying(CSquirrelVM* sqvm) const;
 	void OnLibraryLoaded(HMODULE module, const char* name) const;
 	void RunFrame() const;
+
+	// modloader
+	bool IsModLoader() const;
+	uint32_t RefreshModPaths() const;
+	const char* GetModDirectory(uint32_t index) const;
 };

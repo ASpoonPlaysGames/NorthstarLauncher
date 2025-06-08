@@ -6,6 +6,8 @@
 #include "core/filesystem/filesystem.h"
 #include "core/filesystem/rpakfilesystem.h"
 #include "config/profile.h"
+#include "plugins/pluginmanager.h"
+#include "plugins/plugins.h"
 
 #include "rapidjson/error/en.h"
 #include "rapidjson/document.h"
@@ -521,37 +523,65 @@ void ModManager::SearchFilesystemForMods()
 	std::filesystem::directory_iterator remoteModsDir = fs::directory_iterator(GetRemoteModFolderPath());
 	std::filesystem::directory_iterator thunderstoreModsDir = fs::directory_iterator(GetThunderstoreModFolderPath());
 
+	// basic default Northstar mods
 	for (fs::directory_entry dir : classicModsDir)
 		if (fs::exists(dir.path() / "mod.json"))
 			modDirs.push_back(dir.path());
 
-	// Special case for Thunderstore and remote mods directories
-	// Set up regex for `AUTHOR-MOD-VERSION` pattern
-	std::regex pattern(R"(.*\\([a-zA-Z0-9_]+)-([a-zA-Z0-9_]+)-(\d+\.\d+\.\d+))");
-
-	for (fs::directory_iterator dirIterator : {thunderstoreModsDir, remoteModsDir})
+	// for mods loaded from weird places, like Thunderstore, that have their own structure for collections of mods,
+	// different locations that mods are loaded from, etc.
+	if (g_pPluginManager)
 	{
-		for (fs::directory_entry dir : dirIterator)
+		for (auto& plugin : g_pPluginManager->GetLoadedPlugins())
 		{
-			fs::path modsDir = dir.path() / "mods"; // Check for mods folder in the Thunderstore mod
-			// Use regex to match `AUTHOR-MOD-VERSION` pattern
-			if (!std::regex_match(dir.path().string(), pattern))
+			if (!plugin.IsModLoader())
+				continue;
+
+			uint32_t modCount = plugin.RefreshModPaths();
+			modDirs.reserve(modDirs.size() + modCount);
+			for (uint32_t i = 0; i < modCount; ++i)
 			{
-				spdlog::warn("The following directory did not match 'AUTHOR-MOD-VERSION': {}", dir.path().string());
-				continue; // skip loading mod that doesn't match
-			}
-			if (fs::exists(modsDir) && fs::is_directory(modsDir))
-			{
-				for (fs::directory_entry subDir : fs::directory_iterator(modsDir))
-				{
-					if (fs::exists(subDir.path() / "mod.json"))
-					{
-						modDirs.push_back(subDir.path());
-					}
-				}
+				// kinda annoying, but I don't think that there are really any interface-safe ways of doing this?
+				// perhaps const char** that we just iterate over the right number of times instead of calling
+				// into the plugin each time. Idk though, this isn't something I've done before
+				const char* modPath = plugin.GetModDirectory(i);
+				if (modPath == nullptr)
+					continue;
+
+				modDirs.push_back(modPath);
+				NS::log::NORTHSTAR->info("Plugin {} found mod directory '{}'", plugin.GetName(), modPath);
 			}
 		}
 	}
+
+	// todo: handle in plugin instead
+	// Special case for Thunderstore and remote mods directories
+	// Set up regex for `AUTHOR-MOD-VERSION` pattern
+	//std::regex pattern(R"(.*\\([a-zA-Z0-9_]+)-([a-zA-Z0-9_]+)-(\d+\.\d+\.\d+))");
+
+	//for (fs::directory_iterator dirIterator : {thunderstoreModsDir, remoteModsDir})
+	//{
+	//	for (fs::directory_entry dir : dirIterator)
+	//	{
+	//		fs::path modsDir = dir.path() / "mods"; // Check for mods folder in the Thunderstore mod
+	//		// Use regex to match `AUTHOR-MOD-VERSION` pattern
+	//		if (!std::regex_match(dir.path().string(), pattern))
+	//		{
+	//			spdlog::warn("The following directory did not match 'AUTHOR-MOD-VERSION': {}", dir.path().string());
+	//			continue; // skip loading mod that doesn't match
+	//		}
+	//		if (fs::exists(modsDir) && fs::is_directory(modsDir))
+	//		{
+	//			for (fs::directory_entry subDir : fs::directory_iterator(modsDir))
+	//			{
+	//				if (fs::exists(subDir.path() / "mod.json"))
+	//				{
+	//					modDirs.push_back(subDir.path());
+	//				}
+	//			}
+	//		}
+	//	}
+	//}
 
 	for (fs::path modDir : modDirs)
 	{
