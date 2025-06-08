@@ -35,12 +35,6 @@ ModManager::ModManager()
 	LoadMods();
 }
 
-struct Test
-{
-	std::string funcName;
-	ScriptContext context;
-};
-
 template <ScriptContext context> auto ModConCommandCallback_Internal(std::string name, const CCommand& command)
 {
 	if (g_pSquirrel<context>->m_pSQVM && g_pSquirrel<context>->m_pSQVM)
@@ -108,18 +102,15 @@ auto ModConCommandCallback(const CCommand& command)
 	};
 }
 
-void ModManager::LoadMods()
+//-----------------------------------------------------------------------------
+// Purpose: Populates Mods from disk and enables them based on enabledmods.json
+//-----------------------------------------------------------------------------
+void ModManager::FindMods()
 {
-	if (m_bHasLoadedMods)
-		UnloadMods();
-
 	// ensure dirs exist
-	fs::remove_all(GetCompiledAssetsPath());
 	fs::create_directories(GetModFolderPath());
 	fs::create_directories(GetThunderstoreModFolderPath());
 	fs::create_directories(GetRemoteModFolderPath());
-
-	m_DependencyConstants.clear();
 
 	// File format checks
 	bool isUsingOldFormat = false;
@@ -188,48 +179,74 @@ void ModManager::LoadMods()
 		newModsDetected = true;
 	}
 
+	// create new entries in enabledmods
 	for (Mod& mod : m_LoadedMods)
 	{
-		// Add mod entry to enabledmods.json if it doesn't exist
-		bool isModRemote = mod.m_bIsRemote;
-		bool modEntryExists = m_EnabledModsCfg.HasMember(mod.Name.c_str());
-		bool modEntryHasCorrectFormat = modEntryExists && m_EnabledModsCfg[mod.Name.c_str()].IsObject();
-		bool modVersionEntryExists = modEntryExists && m_EnabledModsCfg[mod.Name.c_str()].HasMember(mod.Version.c_str());
+		// Add mod entry to enabledmods.json if it doesn't exist and the mod isn't remote
 
-		if (!isModRemote && (!modEntryExists || !modVersionEntryExists))
+		const bool isModRemote = mod.m_bIsRemote;
+		if (isModRemote)
+			continue;
+
+		const bool modEntryExists = m_EnabledModsCfg.HasMember(mod.Name.c_str());
+		const bool modEntryHasCorrectFormat = modEntryExists && m_EnabledModsCfg[mod.Name.c_str()].IsObject();
+		const bool modVersionEntryExists = modEntryExists && m_EnabledModsCfg[mod.Name.c_str()].HasMember(mod.Version.c_str());
+
+		if (modVersionEntryExists)
+			continue;
+
+		// Creating mod key (with name)
+		if (!modEntryHasCorrectFormat)
 		{
-			// Creating mod key (with name)
-			if (!modEntryHasCorrectFormat)
+			// Adjust wrong format (string instead of object)
+			if (modEntryExists)
 			{
-				// Adjust wrong format (string instead of object)
-				if (modEntryExists)
-				{
-					m_EnabledModsCfg.RemoveMember(mod.Name.c_str());
-				}
-				m_EnabledModsCfg.AddMember(rapidjson_document::StringRefType(mod.Name.c_str()), false, m_EnabledModsCfg.GetAllocator());
-				m_EnabledModsCfg[mod.Name.c_str()].SetObject();
+				m_EnabledModsCfg.RemoveMember(mod.Name.c_str());
 			}
-
-			// Creating version key
-			if (!modVersionEntryExists)
-			{
-				m_EnabledModsCfg[mod.Name.c_str()].AddMember(
-					rapidjson_document::StringRefType(mod.Version.c_str()), false, m_EnabledModsCfg.GetAllocator());
-			}
-
-			// Add mod entry
-			bool modIsEnabled = mod.m_bEnabled;
-			// Try to use old manifesto if currently migrating from old format
-			if (isUsingOldFormat && oldEnabledModsCfg.HasMember(mod.Name.c_str()) && oldEnabledModsCfg[mod.Name.c_str()].IsBool())
-			{
-				modIsEnabled = oldEnabledModsCfg[mod.Name.c_str()].GetBool();
-				mod.m_bEnabled = modIsEnabled;
-			}
-			m_EnabledModsCfg[mod.Name.c_str()][mod.Version.c_str()].SetBool(modIsEnabled);
-
-			newModsDetected = true;
+			m_EnabledModsCfg.AddMember(rapidjson_document::StringRefType(mod.Name.c_str()), false, m_EnabledModsCfg.GetAllocator());
+			m_EnabledModsCfg[mod.Name.c_str()].SetObject();
 		}
 
+		// Creating version key
+		if (!modVersionEntryExists)
+		{
+			m_EnabledModsCfg[mod.Name.c_str()].AddMember(
+				rapidjson_document::StringRefType(mod.Version.c_str()), false, m_EnabledModsCfg.GetAllocator());
+		}
+
+		// Add mod entry
+		// Try to use old manifesto if currently migrating from old format
+		if (isUsingOldFormat && oldEnabledModsCfg.HasMember(mod.Name.c_str()) && oldEnabledModsCfg[mod.Name.c_str()].IsBool())
+		{
+			mod.m_bEnabled = oldEnabledModsCfg[mod.Name.c_str()].GetBool();
+		}
+		m_EnabledModsCfg[mod.Name.c_str()][mod.Version.c_str()].SetBool(mod.m_bEnabled);
+
+		newModsDetected = true;
+	}
+
+	// If there are new mods, we write entries accordingly in enabledmods.json
+	if (newModsDetected)
+	{
+		std::ofstream writeStream(cfgPath);
+		rapidjson::OStreamWrapper writeStreamWrapper(writeStream);
+		rapidjson::PrettyWriter<rapidjson::OStreamWrapper> writer(writeStreamWrapper);
+		m_EnabledModsCfg.Accept(writer);
+	}
+}
+
+void ModManager::LoadMods()
+{
+	if (m_bHasLoadedMods)
+		UnloadMods();
+
+	FindMods();
+
+	fs::remove_all(GetCompiledAssetsPath());
+	m_DependencyConstants.clear();
+
+	for (Mod& mod : m_LoadedMods)
+	{
 		// register convars
 		// for reloads, this is sorta barebones, when we have a good findconvar method, we could probably reset flags and stuff on
 		// preexisting convars note: we don't delete convars if they already exist because they're used for script stuff, unfortunately this
@@ -495,14 +512,7 @@ void ModManager::LoadMods()
 		}
 	}
 
-	// If there are new mods, we write entries accordingly in enabledmods.json
-	if (newModsDetected)
-	{
-		std::ofstream writeStream(cfgPath);
-		rapidjson::OStreamWrapper writeStreamWrapper(writeStream);
-		rapidjson::PrettyWriter<rapidjson::OStreamWrapper> writer(writeStreamWrapper);
-		m_EnabledModsCfg.Accept(writer);
-	}
+
 
 	// in a seperate loop because we register mod files in reverse order, since mods loaded later should have their files prioritised
 	for (int64_t i = m_LoadedMods.size() - 1; i > -1; i--)
@@ -677,7 +687,10 @@ void ModManager::SearchFilesystemForMods()
 			mod.m_bEnabled = m_EnabledModsCfg[mod.Name.c_str()][mod.Version.c_str()].IsTrue();
 		}
 		else
-			mod.m_bEnabled = true;
+		{
+			// remote mods default to being disabled
+			mod.m_bEnabled = !mod.m_bIsRemote;
+		}
 
 		if (mod.m_bWasReadSuccessfully)
 		{
@@ -746,6 +759,9 @@ void ModManager::ExportModsConfigurationToFile()
 
 	for (Mod& mod : m_LoadedMods)
 	{
+		if (mod.m_bIsRemote)
+			continue;
+
 		// Creating mod key (with name)
 		if (!m_EnabledModsCfg.HasMember(mod.Name.c_str()))
 		{

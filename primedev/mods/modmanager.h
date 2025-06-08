@@ -86,6 +86,7 @@ private:
 
 public:
 	ModManager();
+	void FindMods();
 	void LoadMods();
 	void UnloadMods();
 	std::string NormaliseModFilePath(const fs::path path);
