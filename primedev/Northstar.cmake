@@ -70,6 +70,21 @@ add_library(
     "engine/r2engine.h"
     "engine/runframe.cpp"
     "game/client/clientmode_shared.cpp"
+    "imgui/imgui_menu.cpp"
+    "imgui/imgui_menu.h"
+    "imgui/imgui_ws_test.cpp"
+    "imgui/imgui_ws_test.h"
+    "imgui/imgui/imgui.cpp"
+    "imgui/imgui/imgui.h"
+    "imgui/imgui/imgui_demo.cpp"
+    "imgui/imgui/imgui_draw.cpp"
+    "imgui/imgui/imgui_internal.h"
+    "imgui/imgui/imgui_tables.cpp"
+    "imgui/imgui/imgui_widgets.cpp"
+    "imgui/imgui/backends/imgui_impl_dx11.cpp"
+    "imgui/imgui/backends/imgui_impl_dx11.h"
+    "imgui/imgui/backends/imgui_impl_win32.cpp"
+    "imgui/imgui/backends/imgui_impl_win32.h"
     "logging/crashhandler.cpp"
     "logging/crashhandler.h"
     "logging/logging.cpp"
@@ -193,6 +208,11 @@ add_library(
     "dllmain.cpp"
     "ns_version.h"
     "Northstar.def"
+    )
+
+target_include_directories(
+    NorthstarDLL
+    PRIVATE "imgui/imgui"
     )
 
 target_link_libraries(
