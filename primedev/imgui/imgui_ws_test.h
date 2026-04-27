@@ -29,3 +29,5 @@ private:
 };
 
 void RenderScriptThing(const char* message);
+void BeginScriptFrame();
+void EndScriptFrame();
